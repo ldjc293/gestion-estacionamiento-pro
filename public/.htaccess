@@ -1,0 +1,35 @@
+# ============================================================================
+# .htaccess - Directorio público del Sistema de Estacionamiento
+# ============================================================================
+
+# Habilitar motor de reescritura
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /controldepagosestacionamiento/public/
+
+    # Redirigir todo a index.php excepto archivos/directorios existentes
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+</IfModule>
+
+# Deshabilitar listado de directorios
+Options -Indexes
+
+# Permitir acceso desde localhost
+Require all granted
+
+# UTF-8 Encoding
+AddDefaultCharset UTF-8
+
+# Configuración de seguridad
+<IfModule mod_headers.c>
+    # Prevenir clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # Prevenir MIME sniffing
+    Header set X-Content-Type-Options "nosniff"
+    
+    # Activar filtro XSS del navegador
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
