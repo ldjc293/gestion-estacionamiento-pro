@@ -55,7 +55,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <h6>📊 Todas las mensualidades del usuario:</h6>
                         <?php
                         $sqlTodas = "SELECT m.id, m.mes, m.anio, m.estado, m.fecha_vencimiento,
-                                    CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01') as mes_correspondiente
+                                    CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01') as mes_correspondiente
                              FROM mensualidades m
                              JOIN apartamento_usuario au ON au.id = m.apartamento_usuario_id
                              WHERE au.usuario_id = ? AND au.activo = TRUE

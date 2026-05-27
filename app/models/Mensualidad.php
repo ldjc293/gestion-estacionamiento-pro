@@ -94,7 +94,7 @@ class Mensualidad
         $sql = "SELECT m.*, au.cantidad_controles,
                         CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento,
                         t.tasa_usd_bs,
-                        CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01') as mes_correspondiente
+                        CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01') as mes_correspondiente
                  FROM mensualidades m
                  JOIN apartamento_usuario au ON au.id = m.apartamento_usuario_id
                  JOIN apartamentos a ON a.id = au.apartamento_id
@@ -150,7 +150,7 @@ class Mensualidad
         $sqlTodas = "SELECT m.*, au.cantidad_controles,
                             CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento,
                             t.tasa_usd_bs,
-                            CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01') as mes_correspondiente
+                            CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01') as mes_correspondiente
                      FROM mensualidades m
                      JOIN apartamento_usuario au ON au.id = m.apartamento_usuario_id
                      JOIN apartamentos a ON a.id = au.apartamento_id
@@ -280,8 +280,8 @@ class Mensualidad
                             ?,
                             ?,
                             au.cantidad_controles,
-                            (au.cantidad_controles * ?),
-                            (au.cantidad_controles * ? * ?),
+                            (au.cantidad_controles::numeric * ?::numeric),
+                            (au.cantidad_controles::numeric * ?::numeric * ?::numeric),
                             ?,
                             ?,
                             'pendiente'

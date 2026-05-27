@@ -162,10 +162,10 @@ class Apartamento
         // Filtro de búsqueda (busca en bloque, escalera, número de apartamento y nombre de residente)
         if (!empty($filters['busqueda'])) {
             $sql .= " AND (
-                a.bloque LIKE ? OR
-                a.escalera LIKE ? OR
-                a.numero_apartamento LIKE ? OR
-                u.nombre_completo LIKE ?
+                a.bloque ILIKE ? OR
+                a.escalera ILIKE ? OR
+                a.numero_apartamento ILIKE ? OR
+                u.nombre_completo ILIKE ?
             )";
             $busqueda = "%{$filters['busqueda']}%";
             $params[] = $busqueda;
@@ -214,10 +214,10 @@ class Apartamento
         // Filtro de búsqueda
         if (!empty($filters['busqueda'])) {
             $sql .= " AND (
-                a.bloque LIKE ? OR
-                a.escalera LIKE ? OR
-                a.numero_apartamento LIKE ? OR
-                u.nombre_completo LIKE ?
+                a.bloque ILIKE ? OR
+                a.escalera ILIKE ? OR
+                a.numero_apartamento ILIKE ? OR
+                u.nombre_completo ILIKE ?
             )";
             $busqueda = "%{$filters['busqueda']}%";
             $params[] = $busqueda;
@@ -414,9 +414,9 @@ class Apartamento
                 FROM apartamentos a
                 LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                 LEFT JOIN usuarios u ON u.id = au.usuario_id
-                WHERE CONCAT(a.bloque, '-', a.numero_apartamento) LIKE ?
-                   OR u.nombre_completo LIKE ?
-                   OR a.numero_apartamento LIKE ?
+                WHERE CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?
+                   OR u.nombre_completo ILIKE ?
+                   OR a.numero_apartamento ILIKE ?
                 ORDER BY a.bloque, a.numero_apartamento";
 
         $criterio = "%$criterio%";

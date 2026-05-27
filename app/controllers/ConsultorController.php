@@ -83,8 +83,8 @@ class ConsultorController
                     a.numero_apartamento as apartamento,
                     COUNT(m.id) as meses_vencidos,
                     SUM(m.monto_usd) as deuda_total,
-                    MIN(CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01')) as primera_mensualidad_vencida,
-                    MAX(CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01')) as ultima_mensualidad,
+                    MIN(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as primera_mensualidad_vencida,
+                    MAX(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as ultima_mensualidad,
                     (SELECT COUNT(*) 
                      FROM controles_estacionamiento ce 
                      JOIN apartamento_usuario au2 ON au2.id = ce.apartamento_usuario_id 
@@ -188,7 +188,7 @@ class ConsultorController
         }
 
         if ($moneda) {
-            $sql .= " AND p.moneda_pago LIKE ?"; // Fixed flexibility for usd_efectivo etc
+            $sql .= " AND p.moneda_pago ILIKE ?"; // Fixed flexibility for usd_efectivo etc
             $params[] = $moneda . '%';
         }
 
@@ -681,7 +681,7 @@ class ConsultorController
                         COUNT(*) as generadas,
                         COUNT(CASE WHEN estado = 'pagada' THEN 1 END) as pagadas
                     FROM mensualidades
-                    WHERE CONCAT(anio, '-', LPAD(mes, 2, '0'), '-01') BETWEEN ? AND ?";
+                    WHERE CONCAT(anio, '-', LPAD(mes::text, 2, '0'), '-01') BETWEEN ? AND ?";
         
         $tasaData = Database::fetchOne($sqlTasa, [$inicio, $fin]);
         
@@ -1022,7 +1022,7 @@ class ConsultorController
                     (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = 1) as total_controles,
                     (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = 1 AND m.estado = 'vencida') as meses_vencidos,
                     (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = 1 AND m2.estado = 'vencida') as deuda_total,
-                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = 1 AND m3.estado = 'vencida') as ultima_mensualidad
+                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes::text, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = 1 AND m3.estado = 'vencida') as ultima_mensualidad
                 FROM apartamentos a
                 JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
                 JOIN usuarios u ON u.id = au.usuario_id

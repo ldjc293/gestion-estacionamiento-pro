@@ -623,10 +623,10 @@ class Usuario
                 AND u.activo = TRUE
                 AND (
                     u.email = ?
-                    OR u.nombre_completo LIKE ?
-                    OR u.cedula LIKE ?
-                    OR a.bloque LIKE ?
-                    OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) LIKE ?
+                    OR u.nombre_completo ILIKE ?
+                    OR u.cedula ILIKE ?
+                    OR a.bloque ILIKE ?
+                    OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) ILIKE ?
                 )
                 LIMIT 1";
 
@@ -658,10 +658,10 @@ class Usuario
                 AND u.activo = TRUE
                 AND (
                     u.email = ?
-                    OR u.nombre_completo LIKE ?
-                    OR u.cedula LIKE ?
-                    OR a.bloque LIKE ?
-                    OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) LIKE ?
+                    OR u.nombre_completo ILIKE ?
+                    OR u.cedula ILIKE ?
+                    OR a.bloque ILIKE ?
+                    OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) ILIKE ?
                 )
                 ORDER BY u.nombre_completo
                 LIMIT ?";
@@ -710,7 +710,7 @@ class Usuario
         }
 
         if (isset($filters['busqueda'])) {
-            $sql .= " AND (u.nombre_completo LIKE ? OR u.email LIKE ? OR u.cedula LIKE ? OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) LIKE ?)";
+            $sql .= " AND (u.nombre_completo ILIKE ? OR u.email ILIKE ? OR u.cedula ILIKE ? OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) ILIKE ?)";
             $busqueda = "%{$filters['busqueda']}%";
             $params = array_merge($params, [$busqueda, $busqueda, $busqueda, $busqueda]);
         }

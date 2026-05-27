@@ -362,12 +362,12 @@ class Control
                 LEFT JOIN apartamento_usuario au ON au.id = c.apartamento_usuario_id
                 LEFT JOIN usuarios u ON u.id = au.usuario_id
                 LEFT JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE c.numero_control_completo LIKE ?
-                   OR u.nombre_completo LIKE ?
-                   OR u.email LIKE ?
-                   OR u.cedula LIKE ?
-                   OR CONCAT(a.bloque, '-', a.numero_apartamento) LIKE ?
-                   OR a.bloque LIKE ?
+                WHERE c.numero_control_completo ILIKE ?
+                   OR u.nombre_completo ILIKE ?
+                   OR u.email ILIKE ?
+                   OR u.cedula ILIKE ?
+                   OR CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?
+                   OR a.bloque ILIKE ?
                 ORDER BY c.posicion_numero, c.receptor";
 
         $criterio = "%$criterio%";
@@ -412,7 +412,7 @@ class Control
         }
 
         if (isset($filters['busqueda']) && !empty($filters['busqueda'])) {
-            $sql .= " AND (u.nombre_completo LIKE ? OR u.email LIKE ? OR u.cedula LIKE ? OR c.numero_control_completo LIKE ? OR CONCAT(a.bloque, '-', a.numero_apartamento) LIKE ?)";
+            $sql .= " AND (u.nombre_completo ILIKE ? OR u.email ILIKE ? OR u.cedula ILIKE ? OR c.numero_control_completo ILIKE ? OR CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?)";
             $busqueda = "%{$filters['busqueda']}%";
             $params = array_merge($params, [$busqueda, $busqueda, $busqueda, $busqueda, $busqueda]);
         }

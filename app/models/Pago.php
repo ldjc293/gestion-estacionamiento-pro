@@ -657,7 +657,7 @@ class Pago
         }
 
         if (!empty($filtros['cliente'])) {
-            $sql .= " AND u.nombre_completo LIKE ?";
+            $sql .= " AND u.nombre_completo ILIKE ?";
             $params[] = "%{$filtros['cliente']}%";
         }
 

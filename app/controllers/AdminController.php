@@ -904,20 +904,29 @@ class AdminController
             return;
         }
 
-        // Obtener la asignación actual
-        $sql = "SELECT au.*, u.nombre_completo, u.email
+        // Obtener TODAS las asignaciones actuales
+        $sql = "SELECT au.*, u.nombre_completo, u.email, u.telefono
                 FROM apartamento_usuario au
                 JOIN usuarios u ON u.id = au.usuario_id
                 WHERE au.apartamento_id = ? AND au.activo = TRUE
-                LIMIT 1";
+                ORDER BY u.nombre_completo";
 
-        $asignacion = Database::fetchOne($sql, [$apartamentoId]);
+        $asignaciones = Database::fetchAll($sql, [$apartamentoId]);
 
-        if (!$asignacion) {
-            $_SESSION['error'] = 'No hay residente asignado a este apartamento';
+        if (empty($asignaciones)) {
+            $_SESSION['error'] = 'No hay residentes asignados a este apartamento';
             redirect('admin/apartamentos');
             return;
         }
+
+        // Obtener detalles de los controles físicos
+        foreach ($asignaciones as &$asignacion) {
+            $sqlControles = "SELECT numero_control_completo, estado 
+                             FROM controles_estacionamiento 
+                             WHERE apartamento_usuario_id = ?";
+            $asignacion['controles_detalle'] = Database::fetchAll($sqlControles, [$asignacion['id']]);
+        }
+        unset($asignacion);
 
         // Obtener todos los clientes para cambio
         $clientes = Usuario::getAll(['rol' => 'cliente', 'activo' => true]);
@@ -1620,7 +1629,7 @@ class AdminController
         }
 
         if ($filtros['buscar']) {
-            $sql .= " AND (la.accion LIKE ? OR u.nombre_completo LIKE ? OR u.email LIKE ?)";
+            $sql .= " AND (la.accion ILIKE ? OR u.nombre_completo ILIKE ? OR u.email ILIKE ?)";
             $buscar = "%{$filtros['buscar']}%";
             $params[] = $buscar;
             $params[] = $buscar;
@@ -1670,7 +1679,7 @@ class AdminController
         }
 
         if ($filtros['buscar']) {
-            $sql .= " AND (la.accion LIKE ? OR u.nombre_completo LIKE ? OR u.email LIKE ?)";
+            $sql .= " AND (la.accion ILIKE ? OR u.nombre_completo ILIKE ? OR u.email ILIKE ?)";
             $buscar = "%{$filtros['buscar']}%";
             $params[] = $buscar;
             $params[] = $buscar;
@@ -2977,8 +2986,8 @@ class AdminController
                     a.numero_apartamento as apartamento,
                     COUNT(m.id) as meses_vencidos,
                     SUM(m.monto_usd) as deuda_total,
-                    MIN(CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01')) as primera_mensualidad_vencida,
-                    MAX(CONCAT(m.anio, '-', LPAD(m.mes, 2, '0'), '-01')) as ultima_mensualidad,
+                    MIN(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as primera_mensualidad_vencida,
+                    MAX(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as ultima_mensualidad,
                     (SELECT COUNT(*) 
                      FROM controles_estacionamiento ce 
                      JOIN apartamento_usuario au2 ON au2.id = ce.apartamento_usuario_id 
