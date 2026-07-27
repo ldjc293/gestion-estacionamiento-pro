@@ -101,13 +101,16 @@ if (!method_exists($controllerInstance, $action)) {
 // Llamar al método del controlador con los parámetros
 try {
     call_user_func_array([$controllerInstance, $action], $params);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    if (function_exists('writeLog')) {
+        writeLog("HTTP 500 Error en {$controllerName}::{$action}: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine(), 'error');
+    }
     // Manejar errores
-    if (APP_DEBUG) {
-        die("Error: " . $e->getMessage());
+    if (defined('APP_DEBUG') && APP_DEBUG) {
+        http_response_code(500);
+        die("<div style='font-family:sans-serif;padding:20px;background:#fee;color:#900;border:1px solid #f00;'><h3>Error en la aplicación:</h3><p>" . htmlspecialchars($e->getMessage()) . "</p><pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre></div>");
     } else {
         http_response_code(500);
-        echo "Error 500: Error interno del servidor";
-        exit;
+        die("<div style='font-family:sans-serif;padding:20px;text-align:center;'><h2>Error 500: Error interno del servidor</h2><p>" . htmlspecialchars($e->getMessage()) . "</p></div>");
     }
 }
