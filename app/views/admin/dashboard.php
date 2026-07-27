@@ -19,20 +19,20 @@ require_once __DIR__ . '/../layouts/header.php';
         <!-- Estadísticas Principales -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('admin/usuarios') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
                         <i class="bi bi-people"></i>
                     </div>
                     <div class="value"><?= $estadisticas['usuarios']['total'] ?? 0 ?></div>
-                    <div class="label">Total Usuarios</div>
+                    <div class="label text-muted">Total Usuarios</div>
                     <div class="change">
                         <?= $estadisticas['usuarios']['activos'] ?? 0 ?> activos
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <div class="stat-card h-100">
                     <div class="icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
                         <i class="bi bi-cash-stack"></i>
                     </div>
@@ -45,16 +45,16 @@ require_once __DIR__ . '/../layouts/header.php';
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('admin/controles') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i class="bi bi-controller"></i>
                     </div>
                     <div class="value"><?= $estadisticas['controles']['activos'] ?? 0 ?></div>
-                    <div class="label">Controles Activos</div>
+                    <div class="label text-muted">Controles Activos</div>
                     <div class="change">
                         de <?= $estadisticas['controles']['total'] ?? 500 ?>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
@@ -64,7 +64,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="bi bi-exclamation-triangle"></i>
                         </div>
                         <div class="value"><?= $estadisticas['morosidad']['total_morosos'] ?? 0 ?></div>
-                        <div class="label">Clientes Morosos</div>
+                        <div class="label">Mensualidades de Clientes</div>
                         <div class="change negative">
                             <i class="bi bi-arrow-up"></i> Requiere atención
                         </div>

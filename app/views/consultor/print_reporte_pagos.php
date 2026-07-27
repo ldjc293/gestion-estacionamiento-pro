@@ -102,13 +102,13 @@
                     <tr>
                         <td><?= $pago['id'] ?></td>
                         <td><?= date('d/m/Y', strtotime($pago['fecha_pago'])) ?></td>
-                        <td><?= htmlspecialchars($pago['cliente_nombre']) ?></td>
-                        <td><?= htmlspecialchars($pago['cliente_cedula']) ?></td>
-                        <td>Blq <?= $pago['torre'] ?> - <?= $pago['apartamento'] ?></td>
+                        <td><?= htmlspecialchars($pago['cliente_nombre'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($pago['cliente_cedula'] ?? '') ?></td>
+                        <td>Blq <?= htmlspecialchars($pago['torre'] ?? '') ?> - <?= htmlspecialchars($pago['apartamento'] ?? '') ?></td>
                         <td class="text-right"><?= number_format($pago['monto_usd'], 2) ?></td>
                         <td class="text-right"><?= number_format($pago['monto_bs'], 2) ?></td>
-                        <td><?= ucfirst(str_replace('_', ' ', $pago['moneda_pago'])) ?></td>
-                        <td><?= ucfirst($pago['estado_comprobante']) ?></td>
+                        <td><?= htmlspecialchars(ucfirst(str_replace('_', ' ', $pago['moneda_pago'] ?? ''))) ?></td>
+                        <td><?= htmlspecialchars(ucfirst($pago['estado_comprobante'] ?? '')) ?></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

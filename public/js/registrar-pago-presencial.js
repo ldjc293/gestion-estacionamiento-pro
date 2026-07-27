@@ -45,7 +45,7 @@ if (window.registrarPago) {
     // Búsqueda de clientes
     window.registrarPago.buscarClientes = async function(searchTerm) {
         try {
-            const response = await fetch(`${baseUrl}operador/buscar-cliente?q=${encodeURIComponent(searchTerm)}`);
+            const response = await fetch(`${baseUrl}/operador/buscar-cliente?q=${encodeURIComponent(searchTerm)}`);
             const data = await response.json();
 
             const suggestionsList = document.getElementById('suggestionsList');
@@ -77,6 +77,10 @@ if (window.registrarPago) {
     // Seleccionar cliente
     window.registrarPago.seleccionarCliente = function(clienteId, clienteNombre) {
         document.getElementById('clienteSearch').value = clienteNombre;
+        const hiddenId = document.getElementById('selectedClienteId');
+        if (hiddenId) {
+            hiddenId.value = clienteId;
+        }
         document.getElementById('suggestionsList').style.display = 'none';
         document.getElementById('searchForm').submit();
     };

@@ -100,19 +100,17 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <tbody>
                                     <?php foreach ($mensualidades as $mensualidad): ?>
                                         <?php
-                                        // Determinar el estado real basado en pagos aprobados y fecha de vencimiento
-                                        $estadoReal = $mensualidad['estado'];
+                                        // Determinar el estado real respetando el estado de la base de datos
                                         $tienePagoAprobado = !empty($mensualidad['fecha_pago']);
                                         $fechaVencimiento = strtotime($mensualidad['fecha_vencimiento']);
                                         $estaVencida = $fechaVencimiento < time();
 
-                                        // Si tiene pago aprobado, mostrar como pagada
-                                        if ($tienePagoAprobado) {
+                                        if (($mensualidad['estado'] ?? '') === 'pagada' || $tienePagoAprobado) {
                                             $estadoReal = 'pagada';
-                                        }
-                                        // Si no tiene pago aprobado pero está vencida, mostrar como vencida
-                                        elseif ($estaVencida) {
+                                        } elseif (($mensualidad['estado'] ?? '') === 'vencida' || ($estaVencida && ($mensualidad['estado'] ?? '') !== 'pagada')) {
                                             $estadoReal = 'vencida';
+                                        } else {
+                                            $estadoReal = 'pendiente';
                                         }
                                         ?>
                                         <tr data-estado="<?= $estadoReal ?>">

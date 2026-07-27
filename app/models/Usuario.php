@@ -118,7 +118,37 @@ class Usuario
         $usuario = self::findByEmail($email);
 
         if (!$usuario) {
-            // Registrar intento fallido incluso si el usuario no existe (prevenir enumeración)
+            // Verificar si existe una solicitud de registro pendiente para este email en solicitudes_cambios
+            $sqlSolicitud = "SELECT id, estado, datos_nuevo_usuario, observaciones 
+                             FROM solicitudes_cambios 
+                             WHERE tipo_solicitud = 'registro_nuevo_usuario' 
+                             ORDER BY id DESC";
+            $solicitudes = Database::fetchAll($sqlSolicitud);
+
+            foreach ($solicitudes as $s) {
+                if (!empty($s['datos_nuevo_usuario'])) {
+                    $datos = is_array($s['datos_nuevo_usuario']) ? $s['datos_nuevo_usuario'] : json_decode($s['datos_nuevo_usuario'], true);
+                    if (isset($datos['email']) && strtolower(trim($datos['email'])) === strtolower(trim($email))) {
+                        if ($s['estado'] === 'pendiente') {
+                            writeLog("Login info: El email $email tiene una solicitud de registro pendiente (ID: {$s['id']})", 'info');
+                            return [
+                                'success' => false,
+                                'user' => null,
+                                'message' => 'Su solicitud de registro aún está pendiente de aprobación por el personal administrativo. Por favor espere a que sea aprobada.'
+                            ];
+                        } elseif ($s['estado'] === 'rechazada') {
+                            $motivo = !empty($s['observaciones']) ? ": " . $s['observaciones'] : "";
+                            return [
+                                'success' => false,
+                                'user' => null,
+                                'message' => 'Su solicitud de registro fue rechazada' . $motivo
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Registrar intento fallido si no era una solicitud en espera
             self::registerFailedLoginAttempt($email);
             writeLog("Login failed: User not found for email $email", 'warning');
 
@@ -280,6 +310,9 @@ class Usuario
         $result = Database::execute($sql, [$passwordHash, $this->id]) > 0;
 
         if ($result) {
+            $this->password_temporal = false;
+            CacheHelper::delete("user_id_{$this->id}");
+            CacheHelper::delete("user_email_{$this->email}");
             self::logActividad($this->id, 'password_change', 'Contraseña cambiada');
         }
 
@@ -423,7 +456,11 @@ class Usuario
     public function marcarPrimerAccesoCompletado(): bool
     {
         $sql = "UPDATE usuarios SET primer_acceso = FALSE WHERE id = ?";
-        return Database::execute($sql, [$this->id]) > 0;
+        $result = Database::execute($sql, [$this->id]) > 0;
+        $this->primer_acceso = false;
+        CacheHelper::delete("user_id_{$this->id}");
+        CacheHelper::delete("user_email_{$this->email}");
+        return $result;
     }
 
     /**
@@ -649,6 +686,11 @@ class Usuario
      */
     public static function buscarClientes(string $criterio, int $limit = 10): array
     {
+        // Helper inline para normalizar acentos y minúsculas en PostgreSQL
+        $normalize = function(string $expression): string {
+            return "translate(lower($expression), 'áéíóúüñ', 'aeiouun')";
+        };
+
         $sql = "SELECT DISTINCT u.id, u.nombre_completo, u.email, u.cedula,
                        CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) as apartamento
                 FROM usuarios u
@@ -657,11 +699,11 @@ class Usuario
                 WHERE u.rol = 'cliente'
                 AND u.activo = TRUE
                 AND (
-                    u.email = ?
-                    OR u.nombre_completo ILIKE ?
-                    OR u.cedula ILIKE ?
-                    OR a.bloque ILIKE ?
-                    OR CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) ILIKE ?
+                    " . $normalize("u.email") . " LIKE " . $normalize("?") . "
+                    OR " . $normalize("u.nombre_completo") . " LIKE " . $normalize("?") . "
+                    OR " . $normalize("u.cedula") . " LIKE " . $normalize("?") . "
+                    OR " . $normalize("a.bloque") . " LIKE " . $normalize("?") . "
+                    OR " . $normalize("CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento)") . " LIKE " . $normalize("?") . "
                 )
                 ORDER BY u.nombre_completo
                 LIMIT ?";
@@ -715,7 +757,7 @@ class Usuario
             $params = array_merge($params, [$busqueda, $busqueda, $busqueda, $busqueda]);
         }
 
-        $sql .= " GROUP BY u.id, u.nombre_completo, u.email, u.cedula, u.activo, a.bloque, a.numero_apartamento
+        $sql .= " GROUP BY u.id, u.nombre_completo, u.email, u.cedula, u.activo, a.bloque, a.escalera, a.numero_apartamento
                   ORDER BY u.nombre_completo";
 
         return Database::fetchAll($sql, $params);

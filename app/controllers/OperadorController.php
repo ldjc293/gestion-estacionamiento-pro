@@ -314,14 +314,25 @@ class OperadorController
         $usuario = $this->checkAuth();
         if (!$usuario) return;
 
-        // Buscar cliente si se envió CI o email
+        // Buscar cliente
         $cliente = null;
         $busqueda = sanitize($_GET['buscar'] ?? '');
+        $clienteId = isset($_GET['cliente_id']) && !empty($_GET['cliente_id']) ? intval($_GET['cliente_id']) : null;
+        $resultadosBusqueda = [];
 
-        if ($busqueda) {
-            $cliente = Usuario::buscarCliente($busqueda);
-
+        if ($clienteId) {
+            $cliente = Usuario::findById($clienteId);
             if (!$cliente) {
+                $_SESSION['error'] = 'Cliente no encontrado';
+            }
+        } elseif ($busqueda) {
+            $resultadosBusqueda = Usuario::buscarClientes($busqueda);
+            
+            if (count($resultadosBusqueda) === 1) {
+                $cliente = Usuario::findById($resultadosBusqueda[0]['id']);
+            } elseif (count($resultadosBusqueda) > 1) {
+                // Múltiples coincidencias, se presentarán en la vista para seleccionar
+            } else {
                 $_SESSION['error'] = 'Cliente no encontrado';
             }
         }
@@ -352,21 +363,29 @@ class OperadorController
                 $_SESSION['error'] = "Error al generar mensualidades futuras: " . $e->getMessage();
             }
             // Redireccionar para limpiar el parámetro
-            header('Location: ' . url('operador/registrar-pago-presencial') . '?buscar=' . urlencode($_GET['buscar'] ?? '') . '&modo=adelantado');
+            $clienteIdParam = $cliente ? '&cliente_id=' . $cliente->id : '';
+            header('Location: ' . url('operador/registrar-pago-presencial') . '?buscar=' . urlencode($_GET['buscar'] ?? '') . $clienteIdParam . '&modo=adelantado');
             exit;
         }
 
         if ($cliente) {
             // Permitir hasta 12 meses siempre
             $mesesAdelante = 12;
-            $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($cliente->id, $mesesAdelante);
+            try {
+                $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($cliente->id, $mesesAdelante);
+            } catch (Exception $e) {
+                $_SESSION['error'] = 'Atención: ' . $e->getMessage() . '. Asigne un apartamento al cliente para poder gestionar sus mensualidades.';
+                $mensualidadesPendientes = [];
+            }
             if (!is_array($mensualidadesPendientes)) {
                 $mensualidadesPendientes = [];
             }
         }
 
         // Obtener tasa BCV
-        $tasaBCV = $this->getTasaBCVActual();
+        $tasaBCVData = $this->getTasaBCVInfo();
+        $tasaBCV = $tasaBCVData['tasa_usd_bs'];
+        $tasaBCVFecha = $tasaBCVData['fecha_registro'];
 
         // Asegurar que las variables de tarifa estén siempre disponibles
         if (!isset($tarifaActual)) {
@@ -415,21 +434,24 @@ class OperadorController
             return;
         }
 
+        // Definir URL de redirección en caso de error para no perder el contexto del cliente
+        $redirectUrl = 'operador/registrar-pago-presencial?buscar=' . urlencode($cliente->nombre_completo) . '&cliente_id=' . $cliente->id;
+
         if (!in_array($moneda, ['USD', 'Bs'])) {
             $_SESSION['error'] = 'Moneda inválida';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
 
         if ($monto <= 0) {
             $_SESSION['error'] = 'El monto debe ser mayor a 0';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
 
         if (empty($mensualidadesSeleccionadas)) {
             $_SESSION['error'] = 'Debe seleccionar al menos una mensualidad';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
 
@@ -439,7 +461,7 @@ class OperadorController
 
         if (!$tarifaActual) {
             $_SESSION['error'] = 'No hay tarifa configurada. Contacte al administrador.';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
 
@@ -452,15 +474,27 @@ class OperadorController
         $montoEsperadoUSD = $tarifaActual->monto_mensual_usd * count($mensualidadesSeleccionadas) * $cantidadControles;
         $tasaBCV = $this->getTasaBCVActual();
 
-        // Validar que el monto pagado sea razonable (permitir pequeña variación por redondeo)
-        $variacionPermitida = 0.10; // 10 centavos de variación
-        if (abs($montoEsperadoUSD - $monto) > $variacionPermitida) {
+        // Convertir monto pagado a USD si la moneda de pago fue en Bolívares
+        $montoEnUSD = $monto;
+        if ($moneda === 'Bs') {
+            if ($tasaBCV > 0) {
+                $montoEnUSD = $monto / $tasaBCV;
+            } else {
+                $_SESSION['error'] = 'Error: Tasa de cambio BCV no válida';
+                redirect($redirectUrl);
+                return;
+            }
+        }
+
+        // Validar que el monto pagado sea razonable (permitir pequeña variación por redondeo de tasa)
+        $variacionPermitida = 0.15; // 15 centavos de variación permitida
+        if (abs($montoEsperadoUSD - $montoEnUSD) > $variacionPermitida) {
             $_SESSION['error'] = sprintf(
-                'El monto pagado (%.2f USD) no coincide con el monto esperado (%.2f USD) basado en la tarifa actual.',
-                $monto,
+                'El monto pagado equivalente (%.2f USD) no coincide con el monto esperado (%.2f USD) basado en la tarifa actual.',
+                $montoEnUSD,
                 $montoEsperadoUSD
             );
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
 
@@ -470,7 +504,7 @@ class OperadorController
         
         if (!$apartamentoData) {
             $_SESSION['error'] = 'El cliente no tiene un apartamento asignado';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
             return;
         }
         
@@ -508,13 +542,54 @@ class OperadorController
             writeLog("Pago presencial registrado por operador {$usuario->email}: ID $pagoId, Moneda: $monedaPago", 'info');
 
             $_SESSION['success'] = 'Pago presencial registrado y aprobado correctamente';
-            redirect('operador/dashboard');
+            redirect('operador/pago-exitoso?id=' . $pagoId);
 
         } catch (Exception $e) {
             writeLog("Error al registrar pago presencial: " . $e->getMessage(), 'error');
             $_SESSION['error'] = 'Error al registrar el pago';
-            redirect('operador/registrar-pago-presencial');
+            redirect($redirectUrl);
         }
+    }
+
+    /**
+     * Vista de confirmación de pago exitoso
+     */
+    public function pagoExitoso(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $pagoId = intval($_GET['id'] ?? 0);
+
+        if (!$pagoId) {
+            redirect('operador/dashboard');
+            return;
+        }
+
+        $pago = Pago::findById($pagoId);
+
+        if (!$pago) {
+            $_SESSION['error'] = 'Pago no encontrado';
+            redirect('operador/dashboard');
+            return;
+        }
+
+        // Obtener datos del cliente
+        $sql = "SELECT u.nombre_completo, u.cedula, u.email
+                FROM public.usuarios u
+                JOIN public.apartamento_usuario au ON au.usuario_id = u.id
+                WHERE au.id = ? LIMIT 1";
+        $cliente = Database::fetchOne($sql, [$pago->apartamento_usuario_id]);
+
+        // Obtener datos del apartamento
+        $sqlApto = "SELECT CONCAT(a.bloque, '-', a.numero_apartamento) as apto
+                    FROM public.apartamentos a
+                    JOIN public.apartamento_usuario au ON au.apartamento_id = a.id
+                    WHERE au.id = ? LIMIT 1";
+        $aptoData = Database::fetchOne($sqlApto, [$pago->apartamento_usuario_id]);
+        $aptoInfo = $aptoData ? $aptoData['apto'] : 'N/A';
+
+        require_once __DIR__ . '/../views/operador/pago_exitoso.php';
     }
 
     /**
@@ -778,51 +853,173 @@ class OperadorController
     }
 
     /**
-     * Aprobar/rechazar solicitud
+     * Aprobar solicitud (AJAX/JSON)
+     */
+    public function aprobarSolicitud(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) {
+            echo json_encode(['success' => false, 'message' => 'No autorizado']);
+            exit;
+        }
+
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Método no permitido']);
+            exit;
+        }
+
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            echo json_encode(['success' => false, 'message' => 'Token de seguridad inválido']);
+            exit;
+        }
+
+        $solicitudId = (int)($_POST['solicitud_id'] ?? 0);
+        $controlId = (int)($_POST['control_id'] ?? 0);
+        $observaciones = trim($_POST['observaciones'] ?? '');
+
+        if ($solicitudId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
+            exit;
+        }
+
+        require_once __DIR__ . '/../models/SolicitudCambio.php';
+        $solicitud = SolicitudCambio::findById($solicitudId);
+
+        if (!$solicitud) {
+            echo json_encode(['success' => false, 'message' => 'Solicitud no encontrada']);
+            exit;
+        }
+
+        if ($controlId > 0) {
+            $solicitud->control_id = $controlId;
+            $sqlSet = "UPDATE solicitudes_cambios SET control_id = ? WHERE id = ?";
+            Database::execute($sqlSet, [$controlId, $solicitudId]);
+        }
+
+        if ($solicitud->aprobar($usuario->id, $observaciones)) {
+            echo json_encode(['success' => true, 'message' => 'Solicitud aprobada y procesada exitosamente']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Error al aprobar la solicitud. Verifique que los datos del control sean correctos.']);
+        }
+        exit;
+    }
+
+    /**
+     * Rechazar solicitud (AJAX/JSON)
+     */
+    public function rechazarSolicitud(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) {
+            echo json_encode(['success' => false, 'message' => 'No autorizado']);
+            exit;
+        }
+
+        header('Content-Type: application/json');
+
+        $solicitudId = (int)($_POST['solicitud_id'] ?? 0);
+        $motivo = trim($_POST['motivo'] ?? $_POST['observaciones'] ?? '');
+
+        if ($solicitudId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
+            exit;
+        }
+
+        require_once __DIR__ . '/../models/SolicitudCambio.php';
+        $solicitud = SolicitudCambio::findById($solicitudId);
+
+        if (!$solicitud) {
+            echo json_encode(['success' => false, 'message' => 'Solicitud no encontrada']);
+            exit;
+        }
+
+        if ($solicitud->rechazar($usuario->id, $motivo)) {
+            echo json_encode(['success' => true, 'message' => 'Solicitud rechazada exitosamente']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Error al rechazar la solicitud']);
+        }
+        exit;
+    }
+
+    /**
+     * Obtener lista de controles para asignar o desincorporar en modal (AJAX/JSON)
+     */
+    public function obtenerControlesSolicitud(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        header('Content-Type: application/json');
+
+        $solicitudId = (int)($_GET['solicitud_id'] ?? 0);
+        if ($solicitudId <= 0) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        require_once __DIR__ . '/../models/SolicitudCambio.php';
+        $solicitud = SolicitudCambio::findById($solicitudId);
+
+        if (!$solicitud) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        $tipo = $solicitud->tipo_solicitud;
+        $controles = [];
+
+        if (in_array($tipo, ['desincorporar_control', 'suspension_control', 'desactivacion_control', 'reportar_perdido'])) {
+            $sql = "SELECT id, numero_control_completo, receptor, posicion_numero, estado
+                    FROM controles_estacionamiento
+                    WHERE apartamento_usuario_id = ? AND estado != 'vacio'
+                    ORDER BY posicion_numero, receptor";
+            $controles = Database::fetchAll($sql, [$solicitud->apartamento_usuario_id]);
+        } elseif (in_array($tipo, ['agregar_control', 'comprar_control', 'reactivar_control'])) {
+            $sql = "SELECT id, numero_control_completo, receptor, posicion_numero, estado
+                    FROM controles_estacionamiento
+                    WHERE (estado = 'vacio' OR apartamento_usuario_id IS NULL)
+                    ORDER BY posicion_numero, receptor";
+            $controles = Database::fetchAll($sql);
+        }
+
+        echo json_encode([
+            'success' => true,
+            'tipo' => $tipo,
+            'control_actual_id' => $solicitud->control_id,
+            'controles' => $controles
+        ]);
+        exit;
+    }
+
+    /**
+     * Aprobar/rechazar solicitud (Fallback POST normal)
      */
     public function processSolicitud(): void
     {
         $usuario = $this->checkAuth();
         if (!$usuario) return;
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            redirect('operador/solicitudes');
-            return;
-        }
-
-        // Validar CSRF
-        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
-            $_SESSION['error'] = 'Token de seguridad inválido';
-            redirect('operador/solicitudes');
-            return;
-        }
-
         $solicitudId = intval($_POST['solicitud_id'] ?? 0);
         $accion = $_POST['accion'] ?? '';
+        $controlId = intval($_POST['control_id'] ?? 0);
         $observaciones = sanitize($_POST['observaciones'] ?? '');
 
-        if (!in_array($accion, ['aprobar', 'rechazar'])) {
-            $_SESSION['error'] = 'Acción inválida';
-            redirect('operador/solicitudes');
+        if ($accion === 'aprobar') {
+            $_POST['solicitud_id'] = $solicitudId;
+            $_POST['control_id'] = $controlId;
+            $_POST['observaciones'] = $observaciones;
+            $this->aprobarSolicitud();
             return;
-        }
-
-        $sql = "UPDATE solicitudes_cambios
-                SET estado = ?,
-                    aprobado_por = ?,
-                    fecha_respuesta = NOW(),
-                    observaciones = ?
-                WHERE id = ? AND estado = 'pendiente'";
-
-        $estado = $accion === 'aprobar' ? 'aprobada' : 'rechazada';
-
-        $result = Database::execute($sql, [$estado, $usuario->id, $observaciones, $solicitudId]);
-
-        if ($result > 0) {
-            $_SESSION['success'] = "Solicitud {$estado} correctamente";
-            writeLog("Solicitud ID $solicitudId {$estado} por operador {$usuario->email}", 'info');
-        } else {
-            $_SESSION['error'] = 'Error al procesar la solicitud';
+        } elseif ($accion === 'rechazar') {
+            $_POST['solicitud_id'] = $solicitudId;
+            $_POST['motivo'] = $observaciones;
+            $this->rechazarSolicitud();
+            return;
         }
 
         redirect('operador/solicitudes');
@@ -865,7 +1062,7 @@ class OperadorController
                     SUM(CASE WHEN estado_comprobante = 'aprobado' THEN monto_usd ELSE 0 END) as total_usd,
                     SUM(CASE WHEN estado_comprobante = 'aprobado' THEN monto_bs ELSE 0 END) as total_bs
                 FROM pagos
-                WHERE DATE(fecha_pago) = CURDATE()";
+                WHERE DATE(fecha_pago) = CURRENT_DATE";
 
         $result = Database::fetchOne($sql);
         return is_array($result) ? $result : [
@@ -921,14 +1118,35 @@ class OperadorController
     }
 
     /**
+     * Obtener información completa de la tasa BCV actual
+     */
+    private function getTasaBCVInfo(): array
+    {
+        $sql = "SELECT tasa_usd_bs, fecha_registro, fuente FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+        $result = Database::fetchOne($sql);
+
+        if (!$result) {
+            return [
+                'tasa_usd_bs' => 36.50,
+                'fecha_registro' => date('Y-m-d H:i:s'),
+                'fuente' => 'Sistema'
+            ];
+        }
+
+        return [
+            'tasa_usd_bs' => floatval($result['tasa_usd_bs']),
+            'fecha_registro' => $result['fecha_registro'],
+            'fuente' => $result['fuente']
+        ];
+    }
+
+    /**
      * Obtener tasa BCV actual
      */
     private function getTasaBCVActual(): float
     {
-        $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
-        $result = Database::fetchOne($sql);
-
-        return $result ? floatval($result['tasa_usd_bs']) : 36.50;
+        $info = $this->getTasaBCVInfo();
+        return $info['tasa_usd_bs'];
     }
 
     private function getEstadisticasMorosidad(): array
@@ -1019,29 +1237,22 @@ class OperadorController
     private function obtenerTasaAlternativa(): ?float
     {
         try {
-            // Usar exchangerate.host como alternativa
-            $url = BCV_API_URL;
+            // DolarApi para tasa oficial BCV de Venezuela
+            $url = 'https://ve.dolarapi.com/v1/dolares/oficial';
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0');
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
 
-            $context = stream_context_create([
-                'http' => [
-                    'timeout' => 10,
-                    'user_agent' => 'Mozilla/5.0'
-                ]
-            ]);
-
-            $json = @file_get_contents($url, false, $context);
-
-            if ($json === false) {
-                return null;
-            }
-
-            $data = json_decode($json, true);
-
-            // exchangerate.host devuelve rates.VES
-            if (isset($data['rates']['VES'])) {
-                $tasa = (float) $data['rates']['VES'];
-                if ($tasa >= 10 && $tasa <= 100) {
-                    return $tasa;
+            if ($httpCode === 200 && $response) {
+                $data = json_decode($response, true);
+                if (isset($data['promedio']) && is_numeric($data['promedio']) && $data['promedio'] > 0) {
+                    return (float)$data['promedio'];
                 }
             }
 
@@ -1096,9 +1307,9 @@ class OperadorController
                 $tasaNueva = $tasaActual + (mt_rand(-50, 50) / 100); // Simular cambio pequeño
             }
 
-            // Validar que la tasa sea razonable (entre 1 y 500 Bs)
-            if ($tasaNueva < 1 || $tasaNueva > 500) {
-                writeLog("Tasa obtenida fuera de rango: $tasaNueva", 'error');
+            // Validar que la tasa sea mayor a 0
+            if ($tasaNueva <= 0) {
+                writeLog("Tasa obtenida inválida (menor o igual a cero): $tasaNueva", 'error');
                 echo json_encode(['success' => false, 'message' => "Tasa obtenida inválida: $tasaNueva Bs"]);
                 exit;
             }
@@ -1147,8 +1358,19 @@ class OperadorController
         $usuario = $this->checkAuth();
         if (!$usuario) return;
 
-        $mapa = Control::getMapaControles();
+        $busqueda = isset($_GET['buscar']) && trim($_GET['buscar']) !== '' ? trim($_GET['buscar']) : null;
+        $estado = isset($_GET['estado']) && trim($_GET['estado']) !== '' ? trim($_GET['estado']) : null;
+
+        $mapa = Control::getMapaControles($busqueda, $estado);
         $estadisticas = Control::getEstadisticas();
+
+        $sqlResidentes = "SELECT au.id, u.nombre_completo, CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento
+                          FROM apartamento_usuario au
+                          JOIN usuarios u ON u.id = au.usuario_id
+                          JOIN apartamentos a ON a.id = au.apartamento_id
+                          WHERE au.activo = TRUE
+                          ORDER BY u.nombre_completo ASC";
+        $listaResidentes = Database::fetchAll($sqlResidentes);
 
         require_once __DIR__ . '/../views/operador/controles.php';
     }
@@ -1178,198 +1400,436 @@ class OperadorController
 
         // Obtener apartamento del usuario
         $sql = "SELECT au.id as apartamento_usuario_id, au.cantidad_controles,
-                       a.bloque, a.escalera, a.piso, a.numero_apartamento
+                       a.id as apartamento_id, a.bloque, a.escalera, a.piso, a.numero_apartamento
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuarioId]);
 
-        if (!$apartamento) {
-            echo '<div class="alert alert-danger">El usuario no tiene un apartamento asignado</div>';
-            exit;
+        // Obtener todos los apartamentos activos para el listado
+        $todosApartamentos = Apartamento::getAll(['activo' => true]);
+
+        // Obtener controles actuales y disponibles
+        $controlesActuales = [];
+        $controlesDisponibles = [];
+        if ($apartamento) {
+            $controlesActuales = Control::getByApartamentoUsuario($apartamento['apartamento_usuario_id']);
+            $controlesDisponibles = Control::getVacios();
         }
-
-        // Obtener controles actuales del usuario
-        $controlesActuales = Control::getByApartamentoUsuario($apartamento['apartamento_usuario_id']);
-
-        // Obtener controles disponibles para asignar
-        $controlesDisponibles = Control::getVacios();
 
         // Renderizar contenido del modal
         ob_start();
         ?>
-        <!-- Información del Usuario -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Nombre:</strong> <?= htmlspecialchars($usuarioGestionado->nombre_completo) ?></p>
-                        <p><strong>Email:</strong> <?= htmlspecialchars($usuarioGestionado->email) ?></p>
-                        <p><strong>Teléfono:</strong> <?= htmlspecialchars($usuarioGestionado->telefono ?? 'No especificado') ?></p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Apartamento:</strong> <?= htmlspecialchars($apartamento['bloque'] . '-' . $apartamento['numero_apartamento']) ?></p>
-                        <p><strong>Controles Asignados:</strong> <?= count($controlesActuales) ?> / <?= $apartamento['cantidad_controles'] ?></p>
-                        <p><strong>Rol:</strong> <span class="badge bg-primary"><?= ucfirst($usuarioGestionado->rol) ?></span></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Controles Actuales -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-key"></i> Controles Actuales
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($controlesActuales)): ?>
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-key" style="font-size: 2rem;"></i>
-                                <p class="mb-0 mt-2">No hay controles asignados</p>
-                            </div>
-                        <?php else: ?>
-                            <div class="list-group">
-                                <?php foreach ($controlesActuales as $control): ?>
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <strong><?= htmlspecialchars($control->numero_control_completo) ?></strong>
-                                            <span class="badge
-                                                <?php if ($control->estado === 'activo'): ?>bg-success
-                                                <?php elseif ($control->estado === 'bloqueado'): ?>bg-danger
-                                                <?php else: ?>bg-warning<?php endif; ?> ms-2">
-                                                <?= ucfirst($control->estado) ?>
-                                            </span>
-                                            <?php if ($control->fecha_asignacion): ?>
-                                                <br><small class="text-muted">
-                                                    Asignado: <?= date('d/m/Y', strtotime($control->fecha_asignacion)) ?>
-                                                </small>
-                                            <?php endif; ?>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                                onclick="removerControlAjax(<?= $control->id ?>, '<?= htmlspecialchars($control->numero_control_completo) ?>')">
-                                            <i class="bi bi-trash"></i> Remover
-                                        </button>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Asignar Nuevos Controles -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-plus-circle"></i> Asignar Nuevo Control
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($controlesDisponibles)): ?>
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-exclamation-triangle" style="font-size: 2rem;"></i>
-                                <p class="mb-0 mt-2">No hay controles disponibles</p>
-                            </div>
-                        <?php else: ?>
-                            <form method="POST" action="<?= url('operador/asignar-control-usuario') ?>" id="formAsignarControl">
+        <!-- Contenedor del Modal con Estilos Sleek/Premium -->
+        <div class="container-fluid py-2">
+            <div class="row g-4">
+                <!-- Columna 1: Información del Usuario y Apartamento -->
+                <div class="col-lg-6">
+                    <!-- Tarjeta: Datos del Usuario -->
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-gradient bg-primary text-white py-3">
+                            <h6 class="mb-0 fs-6 fw-bold">
+                                <i class="bi bi-person-fill"></i> Datos del Usuario
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="POST" action="<?= url('operador/guardar-usuario-ajax') ?>" id="formEditarUsuario">
                                 <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                 <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
 
                                 <div class="mb-3">
-                                    <label for="control_id" class="form-label">Seleccionar Control Disponible</label>
-                                    <select class="form-select" name="control_id" id="control_id" required>
-                                        <option value="">-- Seleccionar control --</option>
-                                        <?php foreach ($controlesDisponibles as $control): ?>
-                                            <option value="<?= $control['id'] ?>">
-                                                <?= htmlspecialchars($control['numero_control_completo']) ?> (Posición <?= $control['posicion_numero'] ?>, Receptor <?= $control['receptor'] ?>)
+                                    <label for="nombre_completo" class="form-label fw-semibold text-muted small">Nombre Completo</label>
+                                    <input type="text" class="form-control" name="nombre_completo" id="nombre_completo" 
+                                           value="<?= htmlspecialchars($usuarioGestionado->nombre_completo) ?>" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="email" class="form-label fw-semibold text-muted small">Correo Electrónico</label>
+                                    <input type="email" class="form-control" name="email" id="email" 
+                                           value="<?= htmlspecialchars($usuarioGestionado->email) ?>" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="telefono" class="form-label fw-semibold text-muted small">Teléfono</label>
+                                    <input type="text" class="form-control" name="telefono" id="telefono" 
+                                           value="<?= htmlspecialchars($usuarioGestionado->telefono ?? '') ?>" placeholder="Ej: 04141234567">
+                                </div>
+
+                                <div class="row mb-3 align-items-center">
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="activo" id="activo" value="1" 
+                                                   <?= $usuarioGestionado->activo ? 'checked' : '' ?>>
+                                            <label class="form-check-label fw-semibold text-muted small" for="activo">Usuario Activo</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" name="exonerado" id="exonerado" value="1" 
+                                                   <?= $usuarioGestionado->exonerado ? 'checked' : '' ?> onchange="toggleExoneracionInput(this.checked)">
+                                            <label class="form-check-label fw-semibold text-muted small" for="exonerado">Exonerado de Pago</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3" id="motivo_exoneracion_wrapper" style="display: <?= $usuarioGestionado->exonerado ? 'block' : 'none' ?>;">
+                                    <label for="motivo_exoneracion" class="form-label fw-semibold text-muted small">Motivo de Exoneración</label>
+                                    <textarea class="form-control" name="motivo_exoneracion" id="motivo_exoneracion" rows="2" 
+                                              placeholder="Escriba el motivo detallado de la exoneración..."><?= htmlspecialchars($usuarioGestionado->motivo_exoneracion ?? '') ?></textarea>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary w-100 mt-2 shadow-sm">
+                                    <i class="bi bi-save"></i> Guardar Cambios Personales
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta: Apartamento Asignado -->
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-gradient bg-secondary text-white py-3">
+                            <h6 class="mb-0 fs-6 fw-bold">
+                                <i class="bi bi-house-door-fill"></i> Apartamento Asignado
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="POST" action="<?= url('operador/guardar-apartamento-usuario-ajax') ?>" id="formAsignarApartamento">
+                                <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
+
+                                <div class="mb-3">
+                                    <label for="apartamento_id" class="form-label fw-semibold text-muted small">Seleccionar Apartamento</label>
+                                    <select class="form-select" name="apartamento_id" id="apartamento_id">
+                                        <option value="0">-- Sin Apartamento Asignado / Desasignar --</option>
+                                        <?php foreach ($todosApartamentos as $apt): ?>
+                                            <option value="<?= $apt->id ?>" <?= ($apartamento && $apartamento['apartamento_id'] == $apt->id) ? 'selected' : '' ?>>
+                                                Bloque <?= $apt->bloque ?> - Apt <?= $apt->numero_apartamento ?> (Escalera <?= $apt->escalera ?>, Piso <?= $apt->piso ?>)
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
 
-                                <button type="submit" class="btn btn-success w-100">
-                                    <i class="bi bi-plus-circle"></i> Asignar Control
+                                <button type="submit" class="btn btn-secondary w-100 shadow-sm">
+                                    <i class="bi bi-arrow-left-right"></i> Actualizar Apartamento
                                 </button>
                             </form>
-                        <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Columna 2: Gestión de Controles Físicos -->
+                <div class="col-lg-6">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-gradient bg-dark text-white py-3">
+                            <h6 class="mb-0 fs-6 fw-bold">
+                                <i class="bi bi-key-fill"></i> Controles de Estacionamiento
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <?php if (!$apartamento): ?>
+                                <div class="alert alert-info border-0 shadow-sm py-4 text-center">
+                                    <i class="bi bi-info-circle-fill text-info" style="font-size: 2.5rem;"></i>
+                                    <h6 class="mt-3 fw-bold">Sin Apartamento Asignado</h6>
+                                    <p class="mb-0 text-muted small mt-2">Debe asignar un apartamento a este usuario (en la sección de la izquierda) antes de poder asignarle controles físicos de estacionamiento.</p>
+                                </div>
+                            <?php else: ?>
+                                <!-- Controles Actuales -->
+                                <div class="mb-4">
+                                    <h6 class="fw-bold text-muted small mb-3">CONTROLES ASIGNADOS (<?= count($controlesActuales) ?> / <?= $apartamento['cantidad_controles'] ?>)</h6>
+                                    
+                                    <?php if (empty($controlesActuales)): ?>
+                                        <div class="text-center text-muted py-4 bg-light rounded-3 border">
+                                            <i class="bi bi-key" style="font-size: 2rem;"></i>
+                                            <p class="mb-0 mt-2 small">No hay controles asignados para este apartamento.</p>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="list-group shadow-sm">
+                                            <?php foreach ($controlesActuales as $control): ?>
+                                                <div class="list-group-item py-3">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <div>
+                                                            <span class="fs-5 fw-bold text-dark"><?= htmlspecialchars($control->numero_control_completo) ?></span>
+                                                            <span class="badge
+                                                                <?php if ($control->estado === 'activo'): ?>bg-success
+                                                                <?php elseif ($control->estado === 'bloqueado'): ?>bg-danger
+                                                                <?php elseif ($control->estado === 'suspendido'): ?>bg-warning text-dark
+                                                                <?php else: ?>bg-secondary<?php endif; ?> ms-2">
+                                                                <?= ucfirst($control->estado) ?>
+                                                            </span>
+                                                            <?php if ($control->fecha_asignacion): ?>
+                                                                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                                                                    <i class="bi bi-calendar"></i> Asignado: <?= date('d/m/Y', strtotime($control->fecha_asignacion)) ?>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                                onclick="removerControlAjax(<?= $control->id ?>, '<?= htmlspecialchars($control->numero_control_completo) ?>', <?= $usuarioGestionado->id ?>)">
+                                                            <i class="bi bi-trash"></i> Remover
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <!-- Cambiar Estado Form -->
+                                                    <form method="POST" action="<?= url('operador/cambiar-estado-control') ?>" class="form-cambiar-estado mt-2">
+                                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                                        <input type="hidden" name="control_id" value="<?= $control->id ?>">
+                                                        <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
+                                                        
+                                                        <div class="row g-2">
+                                                            <div class="col-7">
+                                                                <select class="form-select form-select-sm" name="estado" id="estado_<?= $control->id ?>" onchange="toggleMotivo(<?= $control->id ?>, this.value)">
+                                                                    <option value="activo" <?= $control->estado === 'activo' ? 'selected' : '' ?>>Activo</option>
+                                                                    <option value="bloqueado" <?= $control->estado === 'bloqueado' ? 'selected' : '' ?>>Bloqueado</option>
+                                                                    <option value="suspendido" <?= $control->estado === 'suspendido' ? 'selected' : '' ?>>Suspendido</option>
+                                                                    <option value="desactivado" <?= $control->estado === 'desactivado' ? 'selected' : '' ?>>Desactivado</option>
+                                                                    <option value="perdido" <?= $control->estado === 'perdido' ? 'selected' : '' ?>>Perdido</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-5">
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                                                                    <i class="bi bi-check-lg"></i> Guardar Estado
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div class="mt-2" id="motivo_wrapper_<?= $control->id ?>" style="display: <?= $control->estado !== 'activo' ? 'block' : 'none' ?>;">
+                                                            <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Especificar motivo del estado..." value="<?= htmlspecialchars($control->motivo_estado ?? '') ?>">
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <!-- Asignar Nuevos Controles -->
+                                <div class="mt-3 pt-3 border-top">
+                                    <h6 class="fw-bold text-muted small mb-3">ASIGNAR NUEVO CONTROL</h6>
+                                    <?php if (empty($controlesDisponibles)): ?>
+                                        <div class="alert alert-warning py-3 text-center border-0 shadow-sm">
+                                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 1.5rem;"></i>
+                                            <p class="mb-0 small mt-1">No hay controles físicos disponibles en el sistema.</p>
+                                        </div>
+                                    <?php else: ?>
+                                        <form method="POST" action="<?= url('operador/asignar-control-usuario') ?>" id="formAsignarControl">
+                                            <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                            <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
+
+                                            <div class="mb-3">
+                                                <label for="control_id" class="form-label fw-semibold text-muted small">Seleccionar Control Disponible</label>
+                                                <select class="form-select" name="control_id" id="control_id" required>
+                                                    <option value="">-- Seleccionar control libre --</option>
+                                                    <?php foreach ($controlesDisponibles as $ctrl): ?>
+                                                        <option value="<?= $ctrl['id'] ?>">
+                                                            <?= htmlspecialchars($ctrl['numero_control_completo']) ?> (Posición <?= $ctrl['posicion_numero'] ?>, Receptor <?= $ctrl['receptor'] ?>)
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-success w-100 shadow-sm">
+                                                <i class="bi bi-plus-circle"></i> Asignar Control
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <script>
-        function removerControlAjax(controlId, controlNumero) {
-            if (confirm('¿Está seguro de que desea remover el control ' + controlNumero + ' del usuario?')) {
-                const motivo = prompt('Motivo de la remoción:');
-                if (motivo && motivo.trim() !== '') {
-                    // Enviar petición AJAX
-                    fetch('<?= url('operador/remover-control-usuario') ?>', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            'csrf_token': '<?= generateCSRFToken() ?>',
-                            'usuario_id': '<?= $usuarioGestionado->id ?>',
-                            'control_id': controlId,
-                            'motivo': motivo.trim()
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Recargar el modal
-                            location.reload();
-                        } else {
-                            alert('Error: ' + (data.message || 'Error desconocido'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error de conexión');
-                    });
+            function toggleExoneracionInput(checked) {
+                const wrapper = document.getElementById('motivo_exoneracion_wrapper');
+                if (checked) {
+                    wrapper.style.display = 'block';
+                    document.getElementById('motivo_exoneracion').setAttribute('required', 'required');
+                } else {
+                    wrapper.style.display = 'none';
+                    document.getElementById('motivo_exoneracion').removeAttribute('required');
                 }
             }
-        }
 
-        // Manejar envío del formulario de asignación
-        document.getElementById('formAsignarControl')?.addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(this);
-
-            fetch(this.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (response.redirected) {
-                    // Recargar el modal si fue exitoso
-                    location.reload();
+            function toggleMotivo(controlId, val) {
+                const wrapper = document.getElementById('motivo_wrapper_' + controlId);
+                if (val !== 'activo') {
+                    wrapper.style.display = 'block';
+                    wrapper.querySelector('input').setAttribute('required', 'required');
                 } else {
-                    return response.text();
+                    wrapper.style.display = 'none';
+                    wrapper.querySelector('input').removeAttribute('required');
                 }
-            })
-            .then(text => {
-                if (text && text.includes('error')) {
-                    alert('Error al asignar el control');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error de conexión');
-            });
-        });
+            }
         </script>
         <?php
         echo ob_get_clean();
         exit;
+    }
+
+    /**
+     * Guardar datos básicos del usuario desde AJAX
+     */
+    public function guardarUsuarioAjax(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['success' => false, 'message' => 'Método no permitido'], 405);
+            return;
+        }
+
+        // Validar CSRF
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Token de seguridad inválido']);
+            return;
+        }
+
+        $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $nombreCompleto = trim($_POST['nombre_completo'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $telefono = trim($_POST['telefono'] ?? '');
+        $activo = isset($_POST['activo']) && $_POST['activo'] === '1';
+        $exonerado = isset($_POST['exonerado']) && $_POST['exonerado'] === '1';
+        $motivoExoneracion = trim($_POST['motivo_exoneracion'] ?? '');
+
+        if (!$usuarioId) {
+            $this->jsonResponse(['success' => false, 'message' => 'Usuario no especificado']);
+            return;
+        }
+
+        $usuarioGestionado = Usuario::findById($usuarioId);
+        if (!$usuarioGestionado) {
+            $this->jsonResponse(['success' => false, 'message' => 'Usuario no encontrado']);
+            return;
+        }
+
+        // Validaciones básicas
+        if (empty($nombreCompleto) || empty($email)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Nombre completo y Email son requeridos']);
+            return;
+        }
+
+        // Validar duplicado de email
+        $existente = Usuario::findByEmail($email);
+        if ($existente && $existente->id !== $usuarioId) {
+            $this->jsonResponse(['success' => false, 'message' => 'El correo electrónico ya está registrado por otro usuario']);
+            return;
+        }
+
+        // Actualizar datos
+        $dataUpdate = [
+            'nombre_completo' => $nombreCompleto,
+            'email' => $email,
+            'telefono' => $telefono ?: null,
+            'activo' => $activo,
+            'exonerado' => $exonerado,
+            'motivo_exoneracion' => $exonerado ? $motivoExoneracion : null
+        ];
+
+        if ($usuarioGestionado->update($dataUpdate)) {
+            $this->jsonResponse(['success' => true, 'message' => 'Usuario actualizado exitosamente']);
+        } else {
+            $this->jsonResponse(['success' => false, 'message' => 'No se realizaron cambios o hubo un error al actualizar']);
+        }
+    }
+
+    /**
+     * Guardar/Modificar/Eliminar asignación de apartamento a usuario desde AJAX
+     */
+    public function guardarApartamentoUsuarioAjax(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse(['success' => false, 'message' => 'Método no permitido'], 405);
+            return;
+        }
+
+        // Validar CSRF
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $this->jsonResponse(['success' => false, 'message' => 'Token de seguridad inválido']);
+            return;
+        }
+
+        $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $apartamentoId = intval($_POST['apartamento_id'] ?? 0); // 0 significa desasignar
+
+        if (!$usuarioId) {
+            $this->jsonResponse(['success' => false, 'message' => 'Usuario no especificado']);
+            return;
+        }
+
+        $usuarioGestionado = Usuario::findById($usuarioId);
+        if (!$usuarioGestionado) {
+            $this->jsonResponse(['success' => false, 'message' => 'Usuario no encontrado']);
+            return;
+        }
+
+        try {
+            // Obtener asignación actual
+            $sql = "SELECT id, apartamento_id FROM apartamento_usuario WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
+            $asignacionActual = Database::fetchOne($sql, [$usuarioId]);
+
+            if ($apartamentoId > 0) {
+                // Verificar que el apartamento existe y está activo
+                $apartamento = Apartamento::findById($apartamentoId);
+                if (!$apartamento || !$apartamento->activo) {
+                    $this->jsonResponse(['success' => false, 'message' => 'Apartamento no válido o inactivo']);
+                    return;
+                }
+
+                if ($asignacionActual) {
+                    if ($asignacionActual['apartamento_id'] != $apartamentoId) {
+                        // Liberar controles del apartamento anterior
+                        $sqlLiberar = "UPDATE controles_estacionamiento 
+                                       SET apartamento_usuario_id = NULL, estado = 'vacio', motivo_estado = NULL, aprobado_por = NULL, fecha_asignacion = NULL, fecha_estado = NULL
+                                       WHERE apartamento_usuario_id = ?";
+                        Database::execute($sqlLiberar, [$asignacionActual['id']]);
+
+                        // Desactivar asignación vieja
+                        $sqlDesactivar = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
+                        Database::execute($sqlDesactivar, [$asignacionActual['id']]);
+
+                        // Crear asignación nueva
+                        $sqlInsertar = "INSERT INTO apartamento_usuario (usuario_id, apartamento_id, activo, fecha_asignacion, cantidad_controles)
+                                        VALUES (?, ?, TRUE, NOW(), 0)";
+                        Database::execute($sqlInsertar, [$usuarioId, $apartamentoId]);
+
+                        writeLog("Operador {$usuario->email} cambió apartamento del usuario {$usuarioGestionado->email} al apartamento ID {$apartamentoId}", 'info');
+                    }
+                } else {
+                    // Crear nueva asignación
+                    $sqlInsertar = "INSERT INTO apartamento_usuario (usuario_id, apartamento_id, activo, fecha_asignacion, cantidad_controles)
+                                    VALUES (?, ?, TRUE, NOW(), 0)";
+                    Database::execute($sqlInsertar, [$usuarioId, $apartamentoId]);
+
+                    writeLog("Operador {$usuario->email} asignó apartamento ID {$apartamentoId} al usuario {$usuarioGestionado->email}", 'info');
+                }
+            } else {
+                // Desasignar apartamento (si tiene)
+                if ($asignacionActual) {
+                    // Liberar controles del apartamento anterior
+                    $sqlLiberar = "UPDATE controles_estacionamiento 
+                                   SET apartamento_usuario_id = NULL, estado = 'vacio', motivo_estado = NULL, aprobado_por = NULL, fecha_asignacion = NULL, fecha_estado = NULL
+                                   WHERE apartamento_usuario_id = ?";
+                    Database::execute($sqlLiberar, [$asignacionActual['id']]);
+
+                    // Desactivar asignación
+                    $sqlDesactivar = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
+                    Database::execute($sqlDesactivar, [$asignacionActual['id']]);
+
+                    writeLog("Operador {$usuario->email} desasignó apartamento del usuario {$usuarioGestionado->email}", 'info');
+                }
+            }
+
+            $this->jsonResponse(['success' => true, 'message' => 'Apartamento actualizado correctamente']);
+
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -1409,7 +1869,7 @@ class OperadorController
                 $this->jsonResponse(['success' => false, 'message' => $errorMsg]);
             } else {
                 $_SESSION['error'] = $errorMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
             return;
         }
@@ -1422,7 +1882,7 @@ class OperadorController
                 $this->jsonResponse(['success' => true, 'message' => $successMsg]);
             } else {
                 $_SESSION['success'] = $successMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
         } else {
             $errorMsg = 'Error al remover el control';
@@ -1430,7 +1890,7 @@ class OperadorController
                 $this->jsonResponse(['success' => false, 'message' => $errorMsg]);
             } else {
                 $_SESSION['error'] = $errorMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
         }
     }
@@ -1471,13 +1931,13 @@ class OperadorController
                 $this->jsonResponse(['success' => false, 'message' => $errorMsg]);
             } else {
                 $_SESSION['error'] = $errorMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
             return;
         }
 
         // Obtener apartamento_usuario_id del usuario
-        $sql = "SELECT id FROM apartamento_usuario WHERE usuario_id = ? AND activo = 1 LIMIT 1";
+        $sql = "SELECT id FROM apartamento_usuario WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
         $apartamentoUsuario = Database::fetchOne($sql, [$usuarioId]);
 
         if (!$apartamentoUsuario) {
@@ -1486,7 +1946,7 @@ class OperadorController
                 $this->jsonResponse(['success' => false, 'message' => $errorMsg]);
             } else {
                 $_SESSION['error'] = $errorMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
             return;
         }
@@ -1499,7 +1959,7 @@ class OperadorController
                 $this->jsonResponse(['success' => true, 'message' => $successMsg]);
             } else {
                 $_SESSION['success'] = $successMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
         } else {
             $errorMsg = 'Error al asignar el control';
@@ -1507,7 +1967,7 @@ class OperadorController
                 $this->jsonResponse(['success' => false, 'message' => $errorMsg]);
             } else {
                 $_SESSION['error'] = $errorMsg;
-                redirect('operador/gestionar-controles-usuario?id=' . $usuarioId);
+                redirect('operador/controles');
             }
         }
     }
@@ -1575,8 +2035,17 @@ class OperadorController
         $successMessage = '';
         $errorMessage = '';
 
-        // Cambiar estado según el tipo
-        if ($nuevoEstado === 'vacio') {
+        $apartamentoUsuarioId = intval($_POST['apartamento_usuario_id'] ?? $_POST['asignar_usuario_id'] ?? 0);
+
+        // Si se especificó un residente para asignar
+        if ($apartamentoUsuarioId > 0 && $nuevoEstado !== 'vacio') {
+            if ($control->asignar($apartamentoUsuarioId, $operador->id, $nuevoEstado)) {
+                $success = true;
+                $successMessage = "Control {$control->numero_control_completo} actualizado y asignado al residente correctamente";
+            } else {
+                $errorMessage = 'Error al asignar el control al residente';
+            }
+        } elseif ($nuevoEstado === 'vacio') {
             // Desasignar control
             if ($control->desasignar($motivo, $operador->id)) {
                 $success = true;
@@ -1714,7 +2183,7 @@ class OperadorController
         $sql = "SELECT a.id as apartamento_id, a.bloque, a.escalera, a.piso, a.numero_apartamento
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
@@ -1722,7 +2191,7 @@ class OperadorController
         $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 ORDER BY ce.numero_control_completo";
         $controles = Database::fetchAll($sql, [$usuario->id]);
 
@@ -1734,7 +2203,7 @@ class OperadorController
         // Obtener todos los apartamentos disponibles para el selector
         $sql = "SELECT id, bloque, escalera, piso, numero_apartamento
                 FROM apartamentos
-                WHERE activo = 1
+                WHERE activo = TRUE
                 ORDER BY bloque, escalera, piso, numero_apartamento";
         $apartamentosDisponibles = Database::fetchAll($sql);
 
@@ -1819,7 +2288,7 @@ class OperadorController
             // Manejar cambio de apartamento
             // Obtener apartamento actual
             $sql = "SELECT id, apartamento_id FROM apartamento_usuario
-                    WHERE usuario_id = ? AND activo = 1 LIMIT 1";
+                    WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
             $asignacionActual = Database::fetchOne($sql, [$usuario->id]);
 
             if ($apartamentoId > 0) {
@@ -1828,7 +2297,7 @@ class OperadorController
                     // Ya tiene un apartamento, verificar si cambió
                     if ($asignacionActual['apartamento_id'] != $apartamentoId) {
                         // Desactivar asignación anterior
-                        $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                        $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                         Database::execute($sql, [$asignacionActual['id']]);
 
                         // Crear nueva asignación
@@ -1850,7 +2319,7 @@ class OperadorController
                 // Usuario no quiere apartamento asignado
                 if ($asignacionActual) {
                     // Desactivar asignación actual
-                    $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                    $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                     Database::execute($sql, [$asignacionActual['id']]);
 
                     writeLog("Apartamento desasignado de usuario {$usuario->email} (ID: {$usuario->id})", 'info');
@@ -1866,4 +2335,170 @@ class OperadorController
 
         redirect('operador/perfil');
     }
+
+    private function uploadGastoArchivo(array $file, string $prefix): ?string
+    {
+        $uploadDir = GASTOS_PATH . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        if (!in_array($ext, $allowed)) {
+            return null;
+        }
+
+        $nombreArchivo = $prefix . '_' . uniqid() . '.' . $ext;
+        $rutaDestino = $uploadDir . $nombreArchivo;
+
+        if (move_uploaded_file($file['tmp_name'], $rutaDestino)) {
+            return 'uploads/gastos/' . $nombreArchivo;
+        }
+        return null;
+    }
+
+    /**
+     * Registrar un nuevo gasto
+     */
+    public function registrarGasto(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $usuarioRol = 'operador';
+        $postUrl = url('operador/process-registrar-gasto');
+
+        require_once __DIR__ . '/../views/shared/registrar_gasto.php';
+    }
+
+    /**
+     * Procesar registro de gasto
+     */
+    public function processRegistrarGasto(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        // Validar CSRF
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        $nombre = sanitize($_POST['nombre'] ?? '');
+        $descripcion = sanitize($_POST['descripcion'] ?? '');
+        $monto = floatval($_POST['monto'] ?? 0);
+        $moneda = $_POST['moneda'] ?? '';
+        $metodoPago = $_POST['metodo_pago'] ?? '';
+        $fechaGasto = $_POST['fecha_gasto'] ?? date('Y-m-d');
+
+        // Validaciones
+        if (empty($nombre)) {
+            $_SESSION['error'] = 'El nombre del gasto es requerido';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        if ($monto <= 0) {
+            $_SESSION['error'] = 'El monto debe ser mayor a 0';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        if (!in_array($moneda, ['USD', 'Bs'])) {
+            $_SESSION['error'] = 'Moneda inválida';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        if (!in_array($metodoPago, ['efectivo', 'transferencia'])) {
+            $_SESSION['error'] = 'Método de pago inválido';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        // Subida de archivos
+        $comprobanteRuta = null;
+        $reciboRuta = null;
+
+        if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $comprobanteRuta = $this->uploadGastoArchivo($_FILES['comprobante'], 'comprobante');
+            if (!$comprobanteRuta) {
+                $_SESSION['error'] = 'Error al subir el comprobante. Debe ser una imagen válida (JPG, JPEG, PNG, GIF).';
+                redirect('operador/registrar-gasto');
+                return;
+            }
+        } else {
+            $_SESSION['error'] = 'La foto del comprobante es obligatoria';
+            redirect('operador/registrar-gasto');
+            return;
+        }
+
+        if (isset($_FILES['recibo']) && $_FILES['recibo']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $reciboRuta = $this->uploadGastoArchivo($_FILES['recibo'], 'recibo');
+            if (!$reciboRuta) {
+                $_SESSION['error'] = 'Error al subir el recibo. Debe ser una imagen válida.';
+                redirect('operador/registrar-gasto');
+                return;
+            }
+        }
+
+        require_once __DIR__ . '/../models/Gasto.php';
+
+        try {
+            Gasto::registrar([
+                'nombre' => $nombre,
+                'descripcion' => $descripcion,
+                'monto' => $monto,
+                'moneda' => $moneda,
+                'metodo_pago' => $metodoPago,
+                'fecha_gasto' => $fechaGasto,
+                'comprobante_ruta' => $comprobanteRuta,
+                'recibo_ruta' => $reciboRuta,
+                'registrado_por' => $usuario->id
+            ]);
+
+            writeLog("Gasto registrado por operador {$usuario->email}: $nombre ($monto $moneda)", 'info');
+            $_SESSION['success'] = 'Gasto registrado correctamente';
+            redirect('operador/historial-gastos');
+
+        } catch (Exception $e) {
+            writeLog("Error al registrar gasto: " . $e->getMessage(), 'error');
+            $_SESSION['error'] = 'Error interno al registrar el gasto. Intente de nuevo.';
+            redirect('operador/registrar-gasto');
+        }
+    }
+
+    /**
+     * Ver historial de gastos
+     */
+    public function historialGastos(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $usuarioRol = 'operador';
+
+        // Filtros
+        $filtros = [
+            'buscar' => $_GET['buscar'] ?? null,
+            'moneda' => $_GET['moneda'] ?? null,
+            'metodo_pago' => $_GET['metodo_pago'] ?? null,
+            'mes' => $_GET['mes'] ?? null,
+            'anio' => $_GET['anio'] ?? null
+        ];
+
+        require_once __DIR__ . '/../models/Gasto.php';
+        $gastos = Gasto::getAllConFiltros($filtros);
+
+        require_once __DIR__ . '/../views/shared/historial_gastos.php';
+    }
 }
+

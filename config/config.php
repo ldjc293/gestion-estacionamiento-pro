@@ -73,7 +73,17 @@ define('APP_NAME', $_ENV['APP_NAME'] ?? 'Sistema de Estacionamiento');
 define('APP_VERSION', '1.0.0');
 define('APP_ENV', $_ENV['APP_ENV'] ?? 'production');
 define('APP_DEBUG', ($_ENV['APP_DEBUG'] ?? 'false') === 'true');
-define('APP_URL', rtrim($_ENV['APP_URL'] ?? 'http://localhost/controldepagosestacionamiento', '/'));
+if (isset($_SERVER['HTTP_HOST'])) {
+    $protocol = (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] === 1 || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'))) ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $scriptName = $_SERVER['SCRIPT_NAME'];
+    $basePath = dirname($scriptName);
+    $basePath = str_replace('\\', '/', $basePath);
+    $basePath = rtrim($basePath, '/');
+    define('APP_URL', $protocol . '://' . $host . $basePath);
+} else {
+    define('APP_URL', rtrim($_ENV['APP_URL'] ?? 'http://localhost/controldepagosestacionamiento', '/'));
+}
 define('APP_KEY', $_ENV['APP_KEY'] ?? '');
 
 // ============================================================================
@@ -87,11 +97,13 @@ define('PUBLIC_PATH', ROOT_PATH . '/public');
 define('UPLOAD_PATH', PUBLIC_PATH . '/uploads');
 define('COMPROBANTES_PATH', UPLOAD_PATH . '/comprobantes');
 define('RECIBOS_PATH', UPLOAD_PATH . '/recibos');
+define('GASTOS_PATH', UPLOAD_PATH . '/gastos');
 define('LOGS_PATH', ROOT_PATH . '/logs');
 
 // Crear directorios si no existen
 if (!is_dir(COMPROBANTES_PATH)) mkdir(COMPROBANTES_PATH, 0755, true);
 if (!is_dir(RECIBOS_PATH)) mkdir(RECIBOS_PATH, 0755, true);
+if (!is_dir(GASTOS_PATH)) mkdir(GASTOS_PATH, 0755, true);
 if (!is_dir(LOGS_PATH)) mkdir(LOGS_PATH, 0755, true);
 
 // ============================================================================

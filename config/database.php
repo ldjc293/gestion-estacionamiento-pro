@@ -91,7 +91,7 @@ class Database
                     $options = [
                         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                        PDO::ATTR_EMULATE_PREPARES   => false,
+                        PDO::ATTR_EMULATE_PREPARES   => true,
                     ];
                 } else {
                     $dsn = sprintf(
@@ -104,7 +104,7 @@ class Database
                     $options = [
                         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                        PDO::ATTR_EMULATE_PREPARES   => false,
+                        PDO::ATTR_EMULATE_PREPARES   => true,
                         PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES {$config['charset']}"
                     ];
                 }
@@ -118,11 +118,18 @@ class Database
                 
                 // Force UTF-8 encoding for all database operations
                 if (!self::$testMode) {
-                    self::$instance->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
-                    self::$instance->exec("SET CHARACTER SET utf8mb4");
-                    self::$instance->exec("SET character_set_connection=utf8mb4");
-                    self::$instance->exec("SET character_set_client=utf8mb4");
-                    self::$instance->exec("SET character_set_results=utf8mb4");
+                    if ($driver === 'pgsql') {
+                        self::$instance->exec("SET NAMES 'UTF8'");
+                        $tz = $_ENV['APP_TIMEZONE'] ?? 'America/Caracas';
+                        self::$instance->exec("SET TIME ZONE '{$tz}'");
+                    } else {
+                        self::$instance->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
+                        self::$instance->exec("SET CHARACTER SET utf8mb4");
+                        self::$instance->exec("SET character_set_connection=utf8mb4");
+                        self::$instance->exec("SET character_set_client=utf8mb4");
+                        self::$instance->exec("SET character_set_results=utf8mb4");
+                        self::$instance->exec("SET time_zone = '-04:00'");
+                    }
                 }
 
                 // Log de conexión exitosa (solo en desarrollo)
@@ -156,7 +163,17 @@ class Database
     {
         $pdo = self::getInstance();
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        foreach ($params as $key => $value) {
+            $paramKey = is_int($key) ? $key + 1 : $key;
+            if (is_bool($value)) {
+                $stmt->bindValue($paramKey, $value, PDO::PARAM_BOOL);
+            } elseif (is_null($value)) {
+                $stmt->bindValue($paramKey, $value, PDO::PARAM_NULL);
+            } else {
+                $stmt->bindValue($paramKey, $value);
+            }
+        }
+        $stmt->execute();
         return $stmt;
     }
 

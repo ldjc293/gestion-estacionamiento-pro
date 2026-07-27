@@ -19,49 +19,49 @@ require_once __DIR__ . '/../layouts/header.php';
         <!-- Estadísticas Generales -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('consultor/reporte-apartamentos') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
                         <i class="bi bi-people"></i>
                     </div>
                     <div class="value"><?= $estadisticasGenerales['total_clientes'] ?? 0 ?></div>
-                    <div class="label">Clientes Activos</div>
-                </div>
+                    <div class="label text-muted">Clientes Activos</div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('consultor/reporte-controles') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
                         <i class="bi bi-controller"></i>
                     </div>
                     <div class="value"><?= $estadisticasControles['activos'] ?? 0 ?></div>
-                    <div class="label">Controles Activos</div>
+                    <div class="label text-muted">Controles Activos</div>
                     <div class="change">
                         de <?= $estadisticasControles['total'] ?? 500 ?> totales
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('consultor/reporte-morosidad') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                         <i class="bi bi-exclamation-triangle"></i>
                     </div>
                     <div class="value"><?= $morosidad['total_morosos'] ?? 0 ?></div>
-                    <div class="label">Clientes Morosos</div>
+                    <div class="label text-muted">Mensualidades de Clientes</div>
                     <div class="change negative">
                         <i class="bi bi-arrow-up"></i> Deuda: <?= formatUSD($morosidad['deuda_total'] ?? 0) ?>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('consultor/reporte-pagos?estado=pendiente') ?>" class="stat-card d-block text-decoration-none h-100" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div class="icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i class="bi bi-hourglass-split"></i>
                     </div>
                     <div class="value"><?= $estadisticasGenerales['pagos_pendientes'] ?? 0 ?></div>
-                    <div class="label">Pagos Pendientes</div>
-                </div>
+                    <div class="label text-muted">Pagos Pendientes</div>
+                </a>
             </div>
         </div>
 
@@ -94,15 +94,15 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="row">
             <div class="col-md-6">
                 <div class="card h-100">
-                    <div class="card-header bg-danger text-white">
+                    <div class="card-header bg-primary text-white">
                         <h6 class="mb-0">
-                            <i class="bi bi-exclamation-triangle"></i> Reporte de Morosidad
+                            <i class="bi bi-calendar-check"></i> Mensualidades de Clientes
                         </h6>
                     </div>
                     <div class="card-body">
-                        <p>Consulta clientes con pagos vencidos y montos adeudados</p>
-                        <a href="<?= url('consultor/reporte-morosidad') ?>" class="btn btn-danger">
-                            <i class="bi bi-file-text"></i> Ver Reporte Completo
+                        <p>Consulta mensualidades, estado de pago y deudas de todos los clientes</p>
+                        <a href="<?= url('consultor/reporte-morosidad') ?>" class="btn btn-primary">
+                            <i class="bi bi-file-text"></i> Ver Estado de Mensualidades
                         </a>
                     </div>
                 </div>

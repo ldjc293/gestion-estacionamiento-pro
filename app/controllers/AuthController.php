@@ -494,6 +494,11 @@ class AuthController
         $_SESSION['user_primer_acceso'] = false;
         $_SESSION['user_password_temporal'] = false;
 
+        // Limpiar caché en memoria y archivo del usuario para evitar redirección por caché obsoleto
+        require_once __DIR__ . '/../helpers/CacheHelper.php';
+        CacheHelper::delete("user_id_{$usuario->id}");
+        CacheHelper::delete("user_email_{$usuario->email}");
+
         writeLog("Primer acceso completado y contraseña cambiada: {$usuario->email}", 'info');
 
         $_SESSION['success'] = 'Contraseña actualizada correctamente';

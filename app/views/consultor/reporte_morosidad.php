@@ -1,8 +1,8 @@
 <?php
-$pageTitle = 'Reporte de Morosidad';
+$pageTitle = 'Control de Mensualidades';
 $breadcrumb = [
     ['label' => 'Inicio', 'url' => url('consultor/dashboard')],
-    ['label' => 'Reporte de Morosidad', 'url' => '#']
+    ['label' => 'Control de Mensualidades', 'url' => '#']
 ];
 
 require_once __DIR__ . '/../layouts/header.php';
@@ -19,7 +19,7 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning"></i> Reporte de Morosidad
+                    <i class="bi bi-calendar-check text-primary"></i> Control de Mensualidades
                 </h6>
                 <div class="btn-group btn-group-sm">
                     <button onclick="exportarExcel()" class="btn btn-success">
@@ -76,11 +76,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stat-card">
-                            <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                            <div class="icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
                                 <i class="bi bi-people"></i>
                             </div>
                             <div class="value"><?= count($morosos) ?></div>
-                            <div class="label">Clientes Morosos</div>
+                            <div class="label">Total Clientes</div>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -122,72 +122,90 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-hover" id="tableMorosidad">
-                            <thead>
-                                <tr>
-                                    <th>Cliente</th>
-                                    <th>Apartamento</th>
-                                    <th>Controles</th>
-                                    <th>Meses Vencidos</th>
-                                    <th>Deuda Total</th>
-                                    <th>Última Mensualidad</th>
-                                    <th>Estado</th>
-                                    <th>Contacto</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($morosos as $moroso): ?>
-                                    <tr>
-                                        <td>
-                                            <strong><?= htmlspecialchars($moroso['nombre_completo'] ?? '') ?></strong><br>
-                                            <small class="text-muted"><?= htmlspecialchars($moroso['cedula'] ?? '') ?></small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-secondary">
-                                                Bloque <?= $moroso['torre'] ?> - Apto <?= $moroso['apartamento'] ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info">
-                                                <?= $moroso['total_controles'] ?> controles
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-warning" style="font-size: 14px;">
-                                                <?= $moroso['meses_vencidos'] ?> meses
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <strong class="text-danger"><?= formatUSD($moroso['deuda_total']) ?></strong>
-                                        </td>
-                                        <td>
-                                            <small><?= date('m/Y', strtotime($moroso['ultima_mensualidad'])) ?></small>
-                                        </td>
-                                        <td>
-                                            <?php if ($moroso['meses_vencidos'] >= MESES_BLOQUEO): ?>
-                                                <span class="badge bg-danger">
-                                                    <i class="bi bi-lock"></i> Bloqueado
-                                                </span>
-                                            <?php elseif ($moroso['meses_vencidos'] >= 3): ?>
-                                                <span class="badge bg-warning">
-                                                    <i class="bi bi-exclamation-triangle"></i> Crítico
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="badge bg-warning">
-                                                    <i class="bi bi-clock"></i> Vencido
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="bi bi-envelope"></i> <?= htmlspecialchars($moroso['email'] ?? '') ?><br>
-                                                <?php if ($moroso['telefono']): ?>
-                                                    <i class="bi bi-phone"></i> <?= htmlspecialchars($moroso['telefono'] ?? '') ?>
-                                                <?php endif; ?>
-                                            </small>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
+                             <thead>
+                                 <tr>
+                                     <th>Cliente</th>
+                                     <th>Apartamento</th>
+                                     <th>Controles</th>
+                                     <th>Meses Vencidos</th>
+                                     <th>Deuda Total</th>
+                                     <th>Última Mensualidad</th>
+                                     <th>Estado</th>
+                                     <th>Contacto</th>
+                                 </tr>
+                             </thead>
+                             <tbody>
+                                 <?php foreach ($morosos as $moroso): ?>
+                                     <tr>
+                                         <td>
+                                             <strong><?= htmlspecialchars($moroso['nombre_completo'] ?? '') ?></strong><br>
+                                             <small class="text-muted"><?= htmlspecialchars($moroso['cedula'] ?? '') ?></small>
+                                         </td>
+                                         <td>
+                                             <span class="badge bg-secondary">
+                                                 Bloque <?= $moroso['torre'] ?> - Apto <?= $moroso['apartamento'] ?>
+                                             </span>
+                                         </td>
+                                         <td>
+                                             <span class="badge bg-info">
+                                                 <?= $moroso['total_controles'] ?> controles
+                                             </span>
+                                         </td>
+                                         <td>
+                                             <?php if ($moroso['meses_vencidos'] > 0): ?>
+                                                 <span class="badge bg-warning" style="font-size: 14px;">
+                                                     <?= $moroso['meses_vencidos'] ?> meses
+                                                 </span>
+                                             <?php else: ?>
+                                                 <span class="badge bg-success" style="font-size: 14px;">
+                                                     Al día
+                                                 </span>
+                                             <?php endif; ?>
+                                         </td>
+                                         <td>
+                                             <?php if ($moroso['deuda_total'] > 0): ?>
+                                                 <strong class="text-danger"><?= formatUSD($moroso['deuda_total']) ?></strong>
+                                             <?php else: ?>
+                                                 <strong class="text-success">$0.00</strong>
+                                             <?php endif; ?>
+                                         </td>
+                                         <td>
+                                             <?php if ($moroso['ultima_mensualidad']): ?>
+                                                 <small><?= date('m/Y', strtotime($moroso['ultima_mensualidad'])) ?></small>
+                                             <?php else: ?>
+                                                 <small class="text-muted">-</small>
+                                             <?php endif; ?>
+                                         </td>
+                                         <td>
+                                             <?php if ($moroso['meses_vencidos'] >= MESES_BLOQUEO): ?>
+                                                 <span class="badge bg-danger">
+                                                     <i class="bi bi-lock"></i> Bloqueado
+                                                 </span>
+                                             <?php elseif ($moroso['meses_vencidos'] >= 3): ?>
+                                                 <span class="badge bg-warning">
+                                                     <i class="bi bi-exclamation-triangle"></i> Crítico
+                                                 </span>
+                                             <?php elseif ($moroso['meses_vencidos'] > 0): ?>
+                                                 <span class="badge bg-warning">
+                                                     <i class="bi bi-clock"></i> Vencido
+                                                 </span>
+                                             <?php else: ?>
+                                                 <span class="badge bg-success">
+                                                     <i class="bi bi-check-circle"></i> Solvente
+                                                 </span>
+                                             <?php endif; ?>
+                                         </td>
+                                         <td>
+                                             <small>
+                                                 <i class="bi bi-envelope"></i> <?= htmlspecialchars($moroso['email'] ?? '') ?><br>
+                                                 <?php if ($moroso['telefono']): ?>
+                                                     <i class="bi bi-phone"></i> <?= htmlspecialchars($moroso['telefono'] ?? '') ?>
+                                                 <?php endif; ?>
+                                             </small>
+                                         </td>
+                                     </tr>
+                                 <?php endforeach; ?>
+                             </tbody>
                         </table>
                     </div>
                 <?php endif; ?>

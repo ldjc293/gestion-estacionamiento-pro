@@ -18,7 +18,12 @@
         <h2 class="mb-0 text-primary fw-bold" id="tasaBCV">
             <?= number_format($tasaBCV, 2) ?> Bs
         </h2>
-        <small class="text-muted" id="tasaFecha">Actualizado hoy</small>
+        <?php
+        $fechaTasa = isset($tasaBCVFecha) && $tasaBCVFecha ? strtotime($tasaBCVFecha) : time();
+        $esHoy = date('Y-m-d', $fechaTasa) === date('Y-m-d');
+        $textoFecha = $esHoy ? 'Actualizado hoy a las ' . date('h:i A', $fechaTasa) : 'Actualizado el ' . date('d/m/Y h:i A', $fechaTasa);
+        ?>
+        <small class="text-muted d-block mt-1" id="tasaFecha"><i class="bi bi-clock-history me-1"></i><?= $textoFecha ?></small>
         <div id="actualizandoTasa" class="mt-2" style="display: none;">
             <div class="spinner-border spinner-border-sm text-primary" role="status">
                 <span class="visually-hidden">Actualizando...</span>
@@ -96,20 +101,28 @@
 <div class="card border-0 shadow-sm mt-4">
     <div class="card-header bg-info text-white">
         <h6 class="mb-0">
-            <i class="bi bi-graph-up me-2"></i>
+            <i class="bi bi-person-badge me-2"></i>
             Resumen del Cliente
         </h6>
     </div>
     <div class="card-body">
+        <div class="mb-3 border-bottom pb-2">
+            <small class="text-muted d-block fw-semibold">Nombre:</small>
+            <strong class="d-block mb-1 text-dark"><?= htmlspecialchars($cliente->nombre_completo) ?></strong>
+            <small class="text-muted d-block"><i class="bi bi-envelope"></i> <?= htmlspecialchars($cliente->email) ?></small>
+            <?php if (!empty($cliente->cedula)): ?>
+                <small class="text-muted d-block"><i class="bi bi-card-text"></i> Cédula: <?= htmlspecialchars($cliente->cedula) ?></small>
+            <?php endif; ?>
+        </div>
         <div class="row text-center">
             <div class="col-6">
                 <div class="border-end">
-                    <div class="h4 mb-0 text-info" id="sidebar-mensualidades">0</div>
+                    <div class="h4 mb-0 text-info fw-bold" id="sidebar-mensualidades">0</div>
                     <small class="text-muted">Seleccionadas</small>
                 </div>
             </div>
             <div class="col-6">
-                <div class="h4 mb-0 text-success" id="sidebar-total">$0.00</div>
+                <div class="h4 mb-0 text-success fw-bold" id="sidebar-total">$0.00</div>
                 <small class="text-muted">Total</small>
             </div>
         </div>

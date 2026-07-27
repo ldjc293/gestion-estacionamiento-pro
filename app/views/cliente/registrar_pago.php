@@ -383,7 +383,14 @@ require_once __DIR__ . '/../layouts/header.php';
                             <h2 class="mb-0 text-primary fw-bold" id="tasaBCV">
                                 <?= number_format($tasaBCV, 2) ?> Bs
                             </h2>
-                            <small class="text-muted">Actualizado hoy</small>
+                            <?php
+                            $fechaTasa = isset($tasaBCVFecha) && $tasaBCVFecha ? strtotime($tasaBCVFecha) : time();
+                            $esHoy = date('Y-m-d', $fechaTasa) === date('Y-m-d');
+                            $textoFecha = $esHoy ? 'Actualizado hoy a las ' . date('h:i A', $fechaTasa) : 'Actualizado el ' . date('d/m/Y h:i A', $fechaTasa);
+                            ?>
+                            <small class="text-muted d-block mt-1">
+                                <i class="bi bi-clock-history me-1"></i><?= $textoFecha ?>
+                            </small>
                         </div>
                     </div>
 
@@ -574,8 +581,23 @@ class RegistrarPagoCliente {
     }
 
     setupTotalCalculation() {
+        // Bloquear cualquier clic en la tarjeta o etiquetas de un mes bloqueado
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.locked-month')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('mensualidad-checkbox')) {
+                const item = e.target.closest('.mensualidad-item');
+                if (item && item.classList.contains('locked-month')) {
+                    e.target.checked = true;
+                    e.preventDefault();
+                    return false;
+                }
                 this.validarSeleccionSecuencial();
                 this.updateContador();
                 this.calcularTotal();
@@ -595,31 +617,49 @@ class RegistrarPagoCliente {
             return fechaA - fechaB;
         });
 
-        // Encontrar el primer mes no seleccionado
-        let primerMesNoSeleccionado = -1;
-
+        // Encontrar el último mes seleccionado
+        let ultimoMesSeleccionado = -1;
         items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox && checkbox.checked) {
+                ultimoMesSeleccionado = index;
+            }
+        });
 
-            if (!checkbox.checked && primerMesNoSeleccionado === -1) {
+        // Encontrar el primer mes no seleccionado
+        let primerMesNoSeleccionado = -1;
+        items.forEach((item, index) => {
+            const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox && !checkbox.checked && primerMesNoSeleccionado === -1) {
                 primerMesNoSeleccionado = index;
             }
         });
 
-        // Deshabilitar todos los meses después del primer mes no seleccionado
         items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (!checkbox) return;
 
-            // Si hay un mes no seleccionado y este mes está después de él
-            if (primerMesNoSeleccionado !== -1 && index > primerMesNoSeleccionado && !checkbox.checked) {
-                checkbox.disabled = true;
-                item.classList.add('disabled-month');
+            // Resetear estados comunes
+            checkbox.classList.remove('locked-checkbox');
+            checkbox.style.pointerEvents = 'auto';
+            item.classList.remove('locked-month');
+            item.classList.remove('disabled-month');
+
+            if (checkbox.checked) {
+                // Si hay meses seleccionados después de este, bloquearlo para que no se pueda deseleccionar
+                if (ultimoMesSeleccionado > index) {
+                    checkbox.classList.add('locked-checkbox');
+                    checkbox.style.pointerEvents = 'none';
+                    item.classList.add('locked-month');
+                }
             } else {
-                // Solo habilitar si no está ya seleccionado
-                if (!checkbox.checked) {
+                // Si es un mes no seleccionado y está después del primer mes no seleccionado, deshabilitarlo
+                if (primerMesNoSeleccionado !== -1 && index > primerMesNoSeleccionado) {
+                    checkbox.disabled = true;
+                    item.classList.add('disabled-month');
+                } else {
                     checkbox.disabled = false;
                 }
-                item.classList.remove('disabled-month');
             }
         });
     }
@@ -640,8 +680,11 @@ class RegistrarPagoCliente {
             // Actualizar símbolo inmediatamente
             actualizarSimboloMoneda();
 
-            // Actualizar símbolo cuando cambie la moneda
-            monedaSelect.addEventListener('change', actualizarSimboloMoneda);
+            // Actualizar símbolo y recalcular monto total cuando cambie la moneda
+            monedaSelect.addEventListener('change', () => {
+                actualizarSimboloMoneda();
+                this.calcularTotal();
+            });
 
             // Actualizar conversión cuando cambien los valores
             [monedaSelect, montoInput].forEach(element => {
@@ -695,9 +738,8 @@ class RegistrarPagoCliente {
     seleccionarTodos() {
         const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
         checkboxes.forEach(checkbox => {
-            if (!checkbox.disabled) {
-                checkbox.checked = true;
-            }
+            checkbox.disabled = false;
+            checkbox.checked = true;
         });
         this.validarSeleccionSecuencial();
         this.updateContador();
@@ -706,6 +748,7 @@ class RegistrarPagoCliente {
     deseleccionarTodos() {
         const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
         checkboxes.forEach(checkbox => {
+            checkbox.disabled = false;
             checkbox.checked = false;
         });
         this.validarSeleccionSecuencial();
@@ -713,12 +756,15 @@ class RegistrarPagoCliente {
     }
 
     seleccionarPorTipo(tipo) {
-        document.querySelectorAll('.mensualidad-checkbox').forEach(checkbox => {
+        const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
+        checkboxes.forEach(cb => cb.disabled = false);
+
+        checkboxes.forEach(checkbox => {
             const item = checkbox.closest('.mensualidad-item');
-            if (item && item.dataset.tipo === tipo && !checkbox.disabled) {
+            if (tipo === 'pendiente') {
+                checkbox.checked = (item && (item.dataset.tipo === 'pendiente' || item.dataset.tipo === 'vencido'));
+            } else if (tipo === 'futuro') {
                 checkbox.checked = true;
-            } else {
-                checkbox.checked = false;
             }
         });
         this.validarSeleccionSecuencial();
@@ -727,12 +773,17 @@ class RegistrarPagoCliente {
 
     seleccionarSiguientesMeses(cantidad) {
         const items = Array.from(document.querySelectorAll('.mensualidad-item'));
-        this.deseleccionarTodos();
+        items.sort((a, b) => {
+            const fechaA = new Date(a.dataset.mes + '-01');
+            const fechaB = new Date(b.dataset.mes + '-01');
+            return fechaA - fechaB;
+        });
 
-        items.slice(0, cantidad).forEach(item => {
+        items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            if (checkbox && !checkbox.disabled) {
-                checkbox.checked = true;
+            if (checkbox) {
+                checkbox.disabled = false;
+                checkbox.checked = (index < cantidad);
             }
         });
         this.validarSeleccionSecuencial();
@@ -772,6 +823,7 @@ class RegistrarPagoCliente {
         const totalUSDElement = document.getElementById('totalUSD');
         const totalBSElement = document.getElementById('totalBS');
         const montoInput = document.getElementById('monto');
+        const monedaSelect = document.getElementById('moneda');
 
         if (totalUSDElement) {
             totalUSDElement.textContent = this.formatUSD(totalUSD);
@@ -787,7 +839,12 @@ class RegistrarPagoCliente {
         }
 
         if (montoInput) {
-            montoInput.value = totalUSD.toFixed(2);
+            const moneda = monedaSelect ? monedaSelect.value : 'USD';
+            if (moneda === 'Bs') {
+                montoInput.value = totalBS.toFixed(2);
+            } else {
+                montoInput.value = totalUSD.toFixed(2);
+            }
         }
 
         this.actualizarConversion();
@@ -943,29 +1000,12 @@ function generarMensualidadesFuturas(meses) {
 </script>
 
 <style>
-/* Estilos para mensualidad items */
-.mensualidad-item:not(.disabled-month):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    transition: all 0.2s ease;
-}
-
-/* Estilos para meses deshabilitados en selección secuencial */
+/* Estilos para meses no seleccionados deshabilitados (secuenciales) */
 .disabled-month {
-    opacity: 0.5;
-    cursor: not-allowed !important;
+    opacity: 0.6;
     background-color: #f8f9fa !important;
     border-color: #dee2e6 !important;
     position: relative;
-}
-
-.disabled-month::after {
-    content: '🔒';
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    font-size: 12px;
-    opacity: 0.6;
 }
 
 .disabled-month .form-check-input:disabled {
@@ -978,10 +1018,57 @@ function generarMensualidadesFuturas(meses) {
     color: #6c757d !important;
 }
 
-/* Efecto hover para indicar que no se puede seleccionar */
 .disabled-month:hover {
     background-color: #e9ecef !important;
     transform: none !important;
+}
+
+/* Estilos para meses seleccionados bloqueados (para no poder deseleccionar si hay meses posteriores seleccionados) */
+.locked-month {
+    background-color: #e8f5e9 !important;
+    border-color: #a5d6a7 !important;
+    position: relative;
+    box-shadow: inset 0 0 0 1px #81c784;
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+.locked-month * {
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
+
+.locked-month::after {
+    content: '🔒';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 14px;
+    opacity: 0.85;
+}
+
+.locked-month .form-check-input.locked-checkbox {
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+}
+
+.locked-month .form-check-label {
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+.locked-month:hover {
+    transform: none !important;
+    cursor: not-allowed !important;
+}
+
+/* Mensualidad normal con hover */
+.mensualidad-item:not(.disabled-month):not(.locked-month):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
 }
 
 /* Step indicator styles */

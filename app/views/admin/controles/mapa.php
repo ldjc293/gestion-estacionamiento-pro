@@ -5,8 +5,11 @@ $breadcrumb = [
     ['label' => 'Mapa de Controles', 'url' => '#']
 ];
 
+$activeTab = $_GET['tab'] ?? (isset($_GET['buscar']) || isset($_GET['estado']) ? 'posiciones' : 'usuarios');
+
 require_once __DIR__ . '/../../layouts/header.php';
 ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <?php require_once __DIR__ . '/../../layouts/sidebar.php'; ?>
 
@@ -59,12 +62,12 @@ require_once __DIR__ . '/../../layouts/header.php';
         <!-- Pestañas de Vista -->
         <ul class="nav nav-tabs mb-4" id="vistaControlTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="vista-usuarios-tab" data-bs-toggle="tab" data-bs-target="#vista-usuarios" type="button">
+                <button class="nav-link <?= $activeTab === 'usuarios' ? 'active' : '' ?>" id="vista-usuarios-tab" data-bs-toggle="tab" data-bs-target="#vista-usuarios" type="button">
                     <i class="bi bi-people"></i> Vista por Usuario/Apartamento
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="vista-posiciones-tab" data-bs-toggle="tab" data-bs-target="#vista-posiciones" type="button">
+                <button class="nav-link <?= $activeTab === 'posiciones' ? 'active' : '' ?>" id="vista-posiciones-tab" data-bs-toggle="tab" data-bs-target="#vista-posiciones" type="button">
                     <i class="bi bi-grid-3x3"></i> Vista por Posiciones
                 </button>
             </li>
@@ -72,7 +75,7 @@ require_once __DIR__ . '/../../layouts/header.php';
 
         <div class="tab-content" id="vistaControlTabsContent">
             <!-- Vista por Usuario/Apartamento -->
-            <div class="tab-pane fade show active" id="vista-usuarios" role="tabpanel">
+            <div class="tab-pane fade <?= $activeTab === 'usuarios' ? 'show active' : '' ?>" id="vista-usuarios" role="tabpanel">
                 <?php
                 // Obtener controles agrupados por usuario/apartamento
                 $sql = "SELECT
@@ -84,7 +87,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                             au.id as apartamento_usuario_id,
                             au.cantidad_controles,
                             COUNT(c.id) as controles_asignados,
-                            GROUP_CONCAT(c.numero_control_completo ORDER BY c.posicion_numero SEPARATOR ', ') as lista_controles,
+                            STRING_AGG(c.numero_control_completo, ', ' ORDER BY c.posicion_numero) as lista_controles,
                             SUM(CASE WHEN c.estado = 'activo' THEN 1 ELSE 0 END) as controles_activos,
                             SUM(CASE WHEN c.estado = 'bloqueado' THEN 1 ELSE 0 END) as controles_bloqueados
                         FROM apartamento_usuario au
@@ -175,7 +178,7 @@ require_once __DIR__ . '/../../layouts/header.php';
             </div>
 
             <!-- Vista por Posiciones -->
-            <div class="tab-pane fade" id="vista-posiciones" role="tabpanel">
+            <div class="tab-pane fade <?= $activeTab === 'posiciones' ? 'show active' : '' ?>" id="vista-posiciones" role="tabpanel">
                 <!-- Búsqueda rápida -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -185,16 +188,19 @@ require_once __DIR__ . '/../../layouts/header.php';
                     </div>
                     <div class="card-body">
                         <form method="GET" action="<?= url('admin/controles') ?>" class="row g-3">
+                            <input type="hidden" name="tab" value="posiciones">
                             <div class="col-md-4">
-                                <input type="text" class="form-control" name="buscar" placeholder="Buscar por posición (Ej: 15, 150A, 250B)">
+                                <input type="text" class="form-control" name="buscar" value="<?= htmlspecialchars($_GET['buscar'] ?? '') ?>" placeholder="Buscar por posición, residente o apto (Ej: 15, 150A, Juan)">
                             </div>
                             <div class="col-md-3">
                                 <select class="form-select" name="estado">
                                     <option value="">Todos los estados</option>
-                                    <option value="activo">Activos</option>
-                                    <option value="vacio">Disponibles</option>
-                                    <option value="bloqueado">Bloqueados</option>
-                                    <option value="suspendido">Suspendidos</option>
+                                    <option value="activo" <?= ($_GET['estado'] ?? '') === 'activo' ? 'selected' : '' ?>>Activos</option>
+                                    <option value="vacio" <?= ($_GET['estado'] ?? '') === 'vacio' ? 'selected' : '' ?>>Disponibles (Vacíos)</option>
+                                    <option value="bloqueado" <?= ($_GET['estado'] ?? '') === 'bloqueado' ? 'selected' : '' ?>>Bloqueados</option>
+                                    <option value="suspendido" <?= ($_GET['estado'] ?? '') === 'suspendido' ? 'selected' : '' ?>>Suspendidos</option>
+                                    <option value="desactivado" <?= ($_GET['estado'] ?? '') === 'desactivado' ? 'selected' : '' ?>>Desactivados</option>
+                                    <option value="perdido" <?= ($_GET['estado'] ?? '') === 'perdido' ? 'selected' : '' ?>>Perdidos</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -203,7 +209,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                                 </button>
                             </div>
                             <div class="col-md-3">
-                                <a href="<?= url('admin/controles') ?>" class="btn btn-outline-secondary w-100">
+                                <a href="<?= url('admin/controles?tab=posiciones') ?>" class="btn btn-outline-secondary w-100">
                                     <i class="bi bi-x-circle"></i> Limpiar
                                 </a>
                             </div>
@@ -230,36 +236,36 @@ require_once __DIR__ . '/../../layouts/header.php';
                         <table class="table table-sm table-hover">
                             <thead>
                                 <tr>
-                                    <th>Posición</th>
-                                    <th>Receptor A</th>
-                                    <th>Receptor B</th>
+                                    <th style="width: 10%; min-width: 45px;">Pos.</th>
+                                    <th style="width: 45%; min-width: 155px;">Receptor A</th>
+                                    <th style="width: 45%; min-width: 155px;">Receptor B</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($mapa as $posicion => $receptores): ?>
                                     <tr>
-                                        <td class="align-middle">
-                                            <strong style="font-size: 1.1rem;"><?= $posicion ?></strong>
+                                        <td class="align-middle text-center px-1">
+                                            <strong style="font-size: 1rem;"><?= $posicion ?></strong>
                                         </td>
 
                                         <!-- Receptor A -->
-                                        <td style="width: 45%;">
+                                        <td style="width: 45%; min-width: 155px;" class="p-1 p-sm-2">
                                             <?php if (isset($receptores['A'])): ?>
                                                 <?php $controlA = $receptores['A']; ?>
-                                                <div class="p-2 border rounded
+                                                <div class="p-1 p-sm-2 border rounded control-card-box
                                                     <?php if ($controlA['estado'] == 'activo'): ?>bg-success bg-opacity-10 border-success
                                                     <?php elseif ($controlA['estado'] == 'bloqueado'): ?>bg-danger bg-opacity-10 border-danger
                                                     <?php elseif ($controlA['estado'] == 'vacio'): ?>bg-light border-secondary
                                                     <?php else: ?>bg-warning bg-opacity-10 border-warning<?php endif; ?>">
 
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <div>
+                                                    <div class="d-flex justify-content-between align-items-center flex-wrap flex-sm-nowrap gap-1">
+                                                        <div class="d-flex align-items-center">
                                                             <strong><?= $controlA['numero_control_completo'] ?></strong>
                                                             <span class="badge
                                                                 <?php if ($controlA['estado'] == 'activo'): ?>bg-success
                                                                 <?php elseif ($controlA['estado'] == 'bloqueado'): ?>bg-danger
                                                                 <?php elseif ($controlA['estado'] == 'vacio'): ?>bg-secondary
-                                                                <?php else: ?>bg-warning<?php endif; ?> ms-2">
+                                                                <?php else: ?>bg-warning<?php endif; ?> ms-1">
                                                                 <?= ucfirst($controlA['estado']) ?>
                                                             </span>
                                                         </div>
@@ -268,6 +274,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                                 data-control-id="<?= $controlA['id'] ?>"
                                                                 data-control-numero="<?= $controlA['numero_control_completo'] ?>"
                                                                 data-estado-actual="<?= $controlA['estado'] ?>"
+                                                                data-asignado="<?= !empty($controlA['propietario_nombre']) ? '1' : '0' ?>"
                                                                 onchange="cambiarEstadoControl(this)">
                                                             <option value="">Cambiar...</option>
                                                             <option value="activo" <?= $controlA['estado'] == 'activo' ? 'selected' : '' ?>>Activo</option>
@@ -280,19 +287,26 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                     </div>
 
                                                     <?php if (!empty($controlA['propietario_nombre'])): ?>
-                                                        <div class="mt-1 small">
-                                                            <i class="bi bi-person"></i>
-                                                            <?= htmlspecialchars($controlA['propietario_nombre']) ?>
-                                                        </div>
-                                                        <?php if (!empty($controlA['apartamento'])): ?>
-                                                            <div class="small text-muted">
-                                                                <i class="bi bi-building"></i>
-                                                                Apto. <?= htmlspecialchars($controlA['apartamento']) ?>
+                                                        <div class="mt-1 small d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <i class="bi bi-person"></i> <?= htmlspecialchars($controlA['propietario_nombre']) ?>
+                                                                <?php if (!empty($controlA['apartamento'])): ?>
+                                                                    <br><small class="text-muted"><i class="bi bi-building"></i> Apto. <?= htmlspecialchars($controlA['apartamento']) ?></small>
+                                                                <?php endif; ?>
                                                             </div>
-                                                        <?php endif; ?>
+                                                            <button type="button" class="btn btn-sm btn-link text-primary p-0 border-0 ms-1" style="font-size: 11px;" title="Reasignar control"
+                                                                    onclick="abrirModalAsignarControl(<?= $controlA['id'] ?>, '<?= htmlspecialchars($controlA['numero_control_completo']) ?>', '<?= $controlA['estado'] ?>')">
+                                                                <i class="bi bi-pencil-square"></i>
+                                                            </button>
+                                                        </div>
                                                     <?php else: ?>
-                                                        <div class="mt-1 small text-muted">
-                                                            <i class="bi bi-dash-circle"></i> Disponible
+                                                        <div class="mt-2 d-flex justify-content-between align-items-center">
+                                                            <small class="text-muted"><i class="bi bi-dash-circle"></i> Sin asignar</small>
+                                                            <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 11px;"
+                                                                    title="Asignar este control a un residente"
+                                                                    onclick="abrirModalAsignarControl(<?= $controlA['id'] ?>, '<?= htmlspecialchars($controlA['numero_control_completo']) ?>', '<?= $controlA['estado'] ?>')">
+                                                                <i class="bi bi-person-plus"></i> Asignar
+                                                            </button>
                                                         </div>
                                                     <?php endif; ?>
                                                 </div>
@@ -302,23 +316,23 @@ require_once __DIR__ . '/../../layouts/header.php';
                                         </td>
 
                                         <!-- Receptor B -->
-                                        <td style="width: 45%;">
+                                        <td style="width: 45%; min-width: 155px;" class="p-1 p-sm-2">
                                             <?php if (isset($receptores['B'])): ?>
                                                 <?php $controlB = $receptores['B']; ?>
-                                                <div class="p-2 border rounded
+                                                <div class="p-1 p-sm-2 border rounded control-card-box
                                                     <?php if ($controlB['estado'] == 'activo'): ?>bg-success bg-opacity-10 border-success
                                                     <?php elseif ($controlB['estado'] == 'bloqueado'): ?>bg-danger bg-opacity-10 border-danger
                                                     <?php elseif ($controlB['estado'] == 'vacio'): ?>bg-light border-secondary
                                                     <?php else: ?>bg-warning bg-opacity-10 border-warning<?php endif; ?>">
 
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <div>
+                                                    <div class="d-flex justify-content-between align-items-center flex-wrap flex-sm-nowrap gap-1">
+                                                        <div class="d-flex align-items-center">
                                                             <strong><?= $controlB['numero_control_completo'] ?></strong>
                                                             <span class="badge
                                                                 <?php if ($controlB['estado'] == 'activo'): ?>bg-success
                                                                 <?php elseif ($controlB['estado'] == 'bloqueado'): ?>bg-danger
                                                                 <?php elseif ($controlB['estado'] == 'vacio'): ?>bg-secondary
-                                                                <?php else: ?>bg-warning<?php endif; ?> ms-2">
+                                                                <?php else: ?>bg-warning<?php endif; ?> ms-1">
                                                                 <?= ucfirst($controlB['estado']) ?>
                                                             </span>
                                                         </div>
@@ -327,6 +341,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                                 data-control-id="<?= $controlB['id'] ?>"
                                                                 data-control-numero="<?= $controlB['numero_control_completo'] ?>"
                                                                 data-estado-actual="<?= $controlB['estado'] ?>"
+                                                                data-asignado="<?= !empty($controlB['propietario_nombre']) ? '1' : '0' ?>"
                                                                 onchange="cambiarEstadoControl(this)">
                                                             <option value="">Cambiar...</option>
                                                             <option value="activo" <?= $controlB['estado'] == 'activo' ? 'selected' : '' ?>>Activo</option>
@@ -339,19 +354,26 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                     </div>
 
                                                     <?php if (!empty($controlB['propietario_nombre'])): ?>
-                                                        <div class="mt-1 small">
-                                                            <i class="bi bi-person"></i>
-                                                            <?= htmlspecialchars($controlB['propietario_nombre']) ?>
-                                                        </div>
-                                                        <?php if (!empty($controlB['apartamento'])): ?>
-                                                            <div class="small text-muted">
-                                                                <i class="bi bi-building"></i>
-                                                                Apto. <?= htmlspecialchars($controlB['apartamento']) ?>
+                                                        <div class="mt-1 small d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <i class="bi bi-person"></i> <?= htmlspecialchars($controlB['propietario_nombre']) ?>
+                                                                <?php if (!empty($controlB['apartamento'])): ?>
+                                                                    <br><small class="text-muted"><i class="bi bi-building"></i> Apto. <?= htmlspecialchars($controlB['apartamento']) ?></small>
+                                                                <?php endif; ?>
                                                             </div>
-                                                        <?php endif; ?>
+                                                            <button type="button" class="btn btn-sm btn-link text-primary p-0 ms-1 border-0" style="font-size: 11px;" title="Reasignar control"
+                                                                    onclick="abrirModalAsignarControl(<?= $controlB['id'] ?>, '<?= htmlspecialchars($controlB['numero_control_completo']) ?>', '<?= $controlB['estado'] ?>')">
+                                                                <i class="bi bi-pencil-square"></i>
+                                                            </button>
+                                                        </div>
                                                     <?php else: ?>
-                                                        <div class="mt-1 small text-muted">
-                                                            <i class="bi bi-dash-circle"></i> Disponible
+                                                        <div class="mt-2 d-flex justify-content-between align-items-center">
+                                                            <small class="text-muted"><i class="bi bi-dash-circle"></i> Sin asignar</small>
+                                                            <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 11px;"
+                                                                    title="Asignar este control a un residente"
+                                                                    onclick="abrirModalAsignarControl(<?= $controlB['id'] ?>, '<?= htmlspecialchars($controlB['numero_control_completo']) ?>', '<?= $controlB['estado'] ?>')">
+                                                                <i class="bi bi-person-plus"></i> Asignar
+                                                            </button>
                                                         </div>
                                                     <?php endif; ?>
                                                 </div>
@@ -472,49 +494,149 @@ require_once __DIR__ . '/../../layouts/header.php';
 </div>
 
 <script>
-// Función para cambiar estado de control mediante AJAX
+window.LISTA_RESIDENTES = <?= json_encode($listaResidentes ?? []) ?>;
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#vistaControlTabs button[data-bs-toggle="tab"]').forEach(tabBtn => {
+        tabBtn.addEventListener('shown.bs.tab', (e) => {
+            const targetId = e.target.getAttribute('data-bs-target');
+            const tabName = targetId === '#vista-posiciones' ? 'posiciones' : 'usuarios';
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('tab', tabName);
+            window.history.replaceState(null, '', '?' + urlParams.toString());
+        });
+    });
+});
+
+function abrirModalAsignarControl(controlId, controlNumero, estadoActual = 'activo') {
+    let opcionesResidentes = '<option value="">-- Seleccionar Residente --</option>';
+    if (window.LISTA_RESIDENTES && window.LISTA_RESIDENTES.length > 0) {
+        window.LISTA_RESIDENTES.forEach(r => {
+            opcionesResidentes += `<option value="${r.id}">${r.nombre_completo} (${r.apartamento})</option>`;
+        });
+    }
+
+    const htmlContent = `
+        <div class="text-start">
+            <div class="mb-3">
+                <label class="form-label fw-bold small mb-1">Residente a Asignar *:</label>
+                <select id="swal_asignar_residente_id" class="form-select form-select-sm">
+                    ${opcionesResidentes}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold small mb-1">Estatus del Control:</label>
+                <select id="swal_asignar_estado" class="form-select form-select-sm">
+                    <option value="activo" ${estadoActual === 'activo' ? 'selected' : ''}>Activo</option>
+                    <option value="suspendido" ${estadoActual === 'suspendido' ? 'selected' : ''}>Suspendido</option>
+                    <option value="bloqueado" ${estadoActual === 'bloqueado' ? 'selected' : ''}>Bloqueado</option>
+                    <option value="desactivado" ${estadoActual === 'desactivado' ? 'selected' : ''}>Desactivado</option>
+                </select>
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+        title: 'Asignar Control #' + controlNumero,
+        html: htmlContent,
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Guardar y Asignar',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const resId = document.getElementById('swal_asignar_residente_id').value;
+            const estado = document.getElementById('swal_asignar_estado').value;
+            if (!resId) {
+                Swal.showValidationMessage('Debe seleccionar un residente');
+                return false;
+            }
+            return { residente_id: resId, estado: estado };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Asignando control...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+            formData.append('control_id', controlId);
+            formData.append('apartamento_usuario_id', result.value.residente_id);
+            formData.append('estado', result.value.estado);
+            formData.append('motivo', 'Asignación directa desde panel de controles');
+
+            fetch('<?= url("admin/cambiarEstadoControl") ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('¡Éxito!', data.message || 'Control asignado exitosamente', 'success')
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Error', data.message || 'No se pudo asignar el control', 'error');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                location.reload();
+            });
+        }
+    });
+}
+
 function cambiarEstadoControl(selectElement) {
     const controlId = selectElement.dataset.controlId;
     const controlNumero = selectElement.dataset.controlNumero;
     const nuevoEstado = selectElement.value;
     const estadoActual = selectElement.dataset.estadoActual;
+    const esAsignado = selectElement.dataset.asignado === '1';
 
-    // Si no se seleccionó un estado, salir
     if (!nuevoEstado || nuevoEstado === estadoActual) {
-        selectElement.value = estadoActual; // Restaurar valor original
+        selectElement.value = estadoActual;
         return;
     }
 
-    // Preparar mensaje de confirmación según el tipo de cambio
-    let mensajeConfirmacion = '';
-    if (nuevoEstado === 'bloqueado') {
-        mensajeConfirmacion = '¿Está seguro de BLOQUEAR el control ' + controlNumero + '?\n\nEsto impedirá su uso hasta que sea desbloqueado.';
-    } else if (nuevoEstado === 'vacio') {
-        mensajeConfirmacion = '¿Está seguro de marcar como DISPONIBLE el control ' + controlNumero + '?\n\nEsto lo desasignará del propietario actual.';
-    } else {
-        mensajeConfirmacion = '¿Cambiar el control ' + controlNumero + ' de "' + estadoActual + '" a "' + nuevoEstado + '"?';
-    }
-
-    // Pedir motivo del cambio
-    const motivo = prompt('Por favor, ingrese el motivo para cambiar el estado del control ' + controlNumero + ':');
-    if (!motivo || motivo.trim() === '') {
-        selectElement.value = estadoActual; // Restaurar valor original
+    // Si el control NO está asignado y se cambió a un estado distinto a vacío, preguntar si desea asignarlo a un residente
+    if (!esAsignado && nuevoEstado !== 'vacio') {
+        Swal.fire({
+            title: 'Control #' + controlNumero + ' sin residente',
+            text: 'El control no tiene un residente asignado. ¿Desea asignárselo a un residente al cambiar su estatus a ' + nuevoEstado.toUpperCase() + '?',
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonColor: '#198754',
+            denyButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, asignar a residente',
+            denyButtonText: 'Solo cambiar estatus',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                abrirModalAsignarControl(controlId, controlNumero, nuevoEstado);
+            } else if (result.isDenied) {
+                ejecutarCambioEstadoDirecto(selectElement, controlId, controlNumero, nuevoEstado, estadoActual);
+            } else {
+                selectElement.value = estadoActual;
+            }
+        });
         return;
     }
 
-    // Confirmar el cambio
-    if (!confirm(mensajeConfirmacion)) {
-        selectElement.value = estadoActual; // Restaurar valor original
+    ejecutarCambioEstadoDirecto(selectElement, controlId, controlNumero, nuevoEstado, estadoActual);
+}
+
+function ejecutarCambioEstadoDirecto(selectElement, controlId, controlNumero, nuevoEstado, estadoActual) {
+    const motivoPrompt = prompt('Por favor, ingrese el motivo para cambiar el estado del control ' + controlNumero + ':');
+    if (!motivoPrompt || motivoPrompt.trim() === '') {
+        selectElement.value = estadoActual;
         return;
     }
 
-    // Mostrar indicador de carga
-    const originalButton = selectElement;
-    const originalHtml = originalButton.innerHTML;
-    originalButton.innerHTML = '<option>Cargando...</option>';
-    originalButton.disabled = true;
-
-    // Realizar petición AJAX
     fetch('<?= url("admin/cambiarEstadoControl") ?>', {
         method: 'POST',
         headers: {
@@ -525,114 +647,24 @@ function cambiarEstadoControl(selectElement) {
             'csrf_token': '<?= generateCSRFToken() ?>',
             'control_id': controlId,
             'estado': nuevoEstado,
-            'motivo': motivo.trim()
+            'motivo': motivoPrompt.trim()
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Actualizar badge y colores sin recargar página
-            actualizarVistaControl(controlId, nuevoEstado, data.mensaje);
-
-            // Actualizar dataset
-            selectElement.dataset.estadoActual = nuevoEstado;
-
-            // Mostrar notificación de éxito
-            mostrarNotificacion('success', data.mensaje);
+            Swal.fire('¡Éxito!', data.message || 'Estatus actualizado correctamente', 'success')
+                .then(() => location.reload());
         } else {
-            // Restaurar estado original en caso de error
             selectElement.value = estadoActual;
-            mostrarNotificacion('danger', data.mensaje || 'Error al cambiar el estado');
+            Swal.fire('Error', data.message || 'No se pudo cambiar el estado', 'error');
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        console.error(error);
         selectElement.value = estadoActual;
-        mostrarNotificacion('danger', 'Error de conexión. Por favor, intente nuevamente.');
-    })
-    .finally(() => {
-        // Restaurar el select
-        originalButton.innerHTML = originalHtml;
-        originalButton.disabled = false;
-
-        // Actualizar las opciones para que el nuevo estado quede seleccionado
-        Array.from(originalButton.options).forEach(option => {
-            if (option.value === nuevoEstado) {
-                option.selected = true;
-            } else if (option.value === "") {
-                option.text = "Cambiar...";
-            }
-        });
+        Swal.fire('Error', 'Error de conexión. Por favor, intente nuevamente.', 'error');
     });
-}
-
-// Función para actualizar la vista del control sin recargar
-function actualizarVistaControl(controlId, nuevoEstado, mensaje) {
-    // Buscar el elemento del control en la página
-    const controlElement = document.querySelector(`[data-control-id="${controlId}"]`).closest('td');
-    const badge = controlElement.querySelector('.badge');
-    const container = controlElement.querySelector('.border');
-
-    // Actualizar texto y color del badge
-    badge.textContent = nuevoEstado.charAt(0).toUpperCase() + nuevoEstado.slice(1);
-    badge.className = 'badge ms-2';
-
-    // Actualizar clase de contenedor según nuevo estado
-    container.className = 'p-2 border rounded';
-    if (nuevoEstado === 'activo') {
-        badge.classList.add('bg-success');
-        container.classList.add('bg-success', 'bg-opacity-10', 'border-success');
-    } else if (nuevoEstado === 'bloqueado') {
-        badge.classList.add('bg-danger');
-        container.classList.add('bg-danger', 'bg-opacity-10', 'border-danger');
-    } else if (nuevoEstado === 'vacio') {
-        badge.classList.add('bg-secondary');
-        container.classList.add('bg-light', 'border-secondary');
-    } else {
-        badge.classList.add('bg-warning');
-        container.classList.add('bg-warning', 'bg-opacity-10', 'border-warning');
-    }
-
-    // Si el nuevo estado es "vacio", remover información del propietario
-    if (nuevoEstado === 'vacio') {
-        const propietarioInfo = controlElement.parentElement.querySelectorAll('.small');
-        propietarioInfo.forEach(info => {
-            if (info.textContent.includes('Disponible')) {
-                info.innerHTML = '<i class="bi bi-dash-circle"></i> Disponible';
-            } else {
-                info.remove();
-            }
-        });
-    }
-}
-
-// Función para mostrar notificaciones
-function mostrarNotificacion(tipo, mensaje) {
-    // Crear elemento de notificación
-    const notification = document.createElement('div');
-    notification.className = `alert alert-${tipo} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    notification.innerHTML = `
-        ${mensaje}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-
-    // Agregar al cuerpo del documento
-    document.body.appendChild(notification);
-
-    // Auto-eliminar después de 5 segundos
-    setTimeout(() => {
-        if (notification && notification.parentNode) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-// Mantener compatibilidad con el modal existente para usos especiales
-function abrirModalCambiarEstado(controlId, numeroControl, estadoActual) {
-    // Esta función se mantiene por compatibilidad, pero ahora
-    // se prefiere usar el desplegable directo
-    console.log('Se recomienda usar el desplegable directo en lugar del modal');
 }
 </script>
 

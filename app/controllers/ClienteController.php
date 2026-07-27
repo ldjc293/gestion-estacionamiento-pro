@@ -123,7 +123,9 @@ class ClienteController
         $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($usuario->id, 12); // Aumentar a 12 meses
 
         // Obtener tasa BCV actual
-        $tasaBCV = $this->getTasaBCVActual();
+        $tasaBCVData = $this->getTasaBCVInfo();
+        $tasaBCV = $tasaBCVData['tasa_usd_bs'];
+        $tasaBCVFecha = $tasaBCVData['fecha_registro'];
 
         require_once __DIR__ . '/../views/cliente/registrar_pago.php';
     }
@@ -446,7 +448,7 @@ class ClienteController
         $sql = "SELECT a.bloque, a.escalera, a.piso, a.numero_apartamento
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
@@ -454,7 +456,7 @@ class ClienteController
         $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 ORDER BY ce.numero_control_completo";
         $controles = Database::fetchAll($sql, [$usuario->id]);
 
@@ -581,7 +583,7 @@ class ClienteController
         writeLog("ClienteController::processSolicitud - tipo_solicitud recibido: '$tipoSolicitud'", 'debug');
 
         // Validaciones
-        $tiposPermitidos = ['desincorporar_control', 'reportar_perdido', 'agregar_control', 'comprar_control', 'solicitud_personalizada'];
+        $tiposPermitidos = ['desincorporar_control', 'reportar_perdido', 'agregar_control', 'comprar_control', 'solicitud_personalizada', 'reactivar_control'];
         if (empty($tipoSolicitud) || !in_array($tipoSolicitud, $tiposPermitidos)) {
             $_SESSION['error'] = 'Debe seleccionar un tipo de solicitud válido';
             redirect('cliente/solicitudes');
@@ -915,7 +917,7 @@ class ClienteController
      */
     private function uploadComprobante(array $file, int $usuarioId): ?string
     {
-        $uploadDir = __DIR__ . '/../../uploads/comprobantes/';
+        $uploadDir = COMPROBANTES_PATH . '/';
 
         // Crear directorio si no existe
         if (!is_dir($uploadDir)) {
@@ -935,14 +937,35 @@ class ClienteController
     }
 
     /**
+     * Obtener información completa de la tasa BCV actual
+     */
+    private function getTasaBCVInfo(): array
+    {
+        $sql = "SELECT tasa_usd_bs, fecha_registro, fuente FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+        $result = Database::fetchOne($sql);
+
+        if (!$result) {
+            return [
+                'tasa_usd_bs' => 36.50,
+                'fecha_registro' => date('Y-m-d H:i:s'),
+                'fuente' => 'Sistema'
+            ];
+        }
+
+        return [
+            'tasa_usd_bs' => floatval($result['tasa_usd_bs']),
+            'fecha_registro' => $result['fecha_registro'],
+            'fuente' => $result['fuente']
+        ];
+    }
+
+    /**
      * Obtener tasa BCV actual
      */
     private function getTasaBCVActual(): float
     {
-        $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
-        $result = Database::fetchOne($sql);
-
-        return $result ? floatval($result['tasa_usd_bs']) : 36.50;
+        $info = $this->getTasaBCVInfo();
+        return $info['tasa_usd_bs'];
     }
 
     /**
@@ -1004,3 +1027,4 @@ class ClienteController
         }
     }
 }
+

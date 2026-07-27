@@ -34,6 +34,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <select class="form-select" id="tipoSolicitud" name="tipo_solicitud" required>
                                     <option value="">-- Seleccione un tipo --</option>
                                     <option value="desincorporar_control">Desincorporar Control</option>
+                                    <option value="reactivar_control">Reactivar Control Desincorporado</option>
                                     <option value="reportar_perdido">Reportar Control Perdido</option>
                                     <option value="agregar_control">Añadir Nuevo Control</option>
                                     <option value="comprar_control">Comprar Control</option>

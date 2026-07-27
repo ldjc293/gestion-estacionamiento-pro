@@ -89,7 +89,7 @@ class AdminController
                            CASE WHEN ce.estado = 'activo' THEN 1 ELSE 0 END as activo
                     FROM apartamento_usuario au
                     LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                    WHERE au.usuario_id = ? AND au.activo = 1
+                    WHERE au.usuario_id = ? AND au.activo = TRUE
                     ORDER BY ce.numero_control_completo";
             $user->controles = Database::fetchAll($sql, [$user->id]);
 
@@ -97,7 +97,7 @@ class AdminController
             $sql = "SELECT a.bloque, a.escalera, a.piso, a.numero_apartamento
                     FROM apartamento_usuario au
                     JOIN apartamentos a ON a.id = au.apartamento_id
-                    WHERE au.usuario_id = ? AND au.activo = 1
+                    WHERE au.usuario_id = ? AND au.activo = TRUE
                     LIMIT 1";
             $apto = Database::fetchOne($sql, [$user->id]);
             if ($apto) {
@@ -245,7 +245,7 @@ class AdminController
         $sql = "SELECT a.*, au.cantidad_controles
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuarioId]);
 
@@ -253,7 +253,7 @@ class AdminController
         $sql = "SELECT ce.id, ce.numero_control_completo, ce.estado, ce.fecha_asignacion
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 ORDER BY ce.numero_control_completo";
         $controles = Database::fetchAll($sql, [$usuarioId]);
 
@@ -574,7 +574,7 @@ class AdminController
         }
 
         // Verificar si tiene apartamento asignado (cualquier rol puede tener apartamento)
-        $sql = "SELECT COUNT(*) as total FROM apartamento_usuario WHERE usuario_id = ? AND activo = 1";
+        $sql = "SELECT COUNT(*) as total FROM apartamento_usuario WHERE usuario_id = ? AND activo = TRUE";
         $result = Database::fetchOne($sql, [$usuarioId]);
         if ($result['total'] > 0) {
             echo json_encode(['success' => false, 'message' => 'No se puede eliminar. El usuario tiene un apartamento asignado. Primero debe desasignarlo.']);
@@ -992,8 +992,19 @@ class AdminController
         $usuario = $this->checkAuth();
         if (!$usuario) return;
 
-        $mapa = Control::getMapaControles();
+        $busqueda = isset($_GET['buscar']) && trim($_GET['buscar']) !== '' ? trim($_GET['buscar']) : null;
+        $estado = isset($_GET['estado']) && trim($_GET['estado']) !== '' ? trim($_GET['estado']) : null;
+
+        $mapa = Control::getMapaControles($busqueda, $estado);
         $estadisticas = Control::getEstadisticas();
+
+        $sqlResidentes = "SELECT au.id, u.nombre_completo, CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento
+                          FROM apartamento_usuario au
+                          JOIN usuarios u ON u.id = au.usuario_id
+                          JOIN apartamentos a ON a.id = au.apartamento_id
+                          WHERE au.activo = TRUE
+                          ORDER BY u.nombre_completo ASC";
+        $listaResidentes = Database::fetchAll($sqlResidentes);
 
         require_once __DIR__ . '/../views/admin/controles/mapa.php';
     }
@@ -1028,7 +1039,7 @@ class AdminController
 
         if (!$control || !$usuario) {
             $_SESSION['error'] = 'Datos inválidos';
-            redirect('admin/gestionar-controles-usuario?id=' . $usuarioId);
+            redirect('admin/editar-usuario?id=' . $usuarioId);
             return;
         }
 
@@ -1039,7 +1050,7 @@ class AdminController
             $_SESSION['error'] = 'Error al remover el control';
         }
 
-        redirect('admin/gestionar-controles-usuario?id=' . $usuarioId);
+        redirect('admin/editar-usuario?id=' . $usuarioId);
     }
 
     /**
@@ -1070,17 +1081,17 @@ class AdminController
 
         if (!$control || !$usuario) {
             $_SESSION['error'] = 'Datos inválidos';
-            redirect('admin/gestionar-controles-usuario?id=' . $usuarioId);
+            redirect('admin/editar-usuario?id=' . $usuarioId);
             return;
         }
 
         // Obtener apartamento_usuario_id del usuario
-        $sql = "SELECT id FROM apartamento_usuario WHERE usuario_id = ? AND activo = 1 LIMIT 1";
+        $sql = "SELECT id FROM apartamento_usuario WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
         $apartamentoUsuario = Database::fetchOne($sql, [$usuarioId]);
 
         if (!$apartamentoUsuario) {
             $_SESSION['error'] = 'El usuario no tiene un apartamento asignado';
-            redirect('admin/gestionar-controles-usuario?id=' . $usuarioId);
+            redirect('admin/editar-usuario?id=' . $usuarioId);
             return;
         }
 
@@ -1091,7 +1102,7 @@ class AdminController
             $_SESSION['error'] = 'Error al asignar el control';
         }
 
-        redirect('admin/gestionar-controles-usuario?id=' . $usuarioId);
+        redirect('admin/editar-usuario?id=' . $usuarioId);
     }
 
     /**
@@ -1235,8 +1246,17 @@ class AdminController
         $successMessage = '';
         $errorMessage = '';
 
-        // Cambiar estado según el tipo
-        if ($nuevoEstado === 'vacio') {
+        $apartamentoUsuarioId = intval($_POST['apartamento_usuario_id'] ?? $_POST['asignar_usuario_id'] ?? 0);
+
+        // Si se especificó un residente para asignar
+        if ($apartamentoUsuarioId > 0 && $nuevoEstado !== 'vacio') {
+            if ($control->asignar($apartamentoUsuarioId, $admin->id, $nuevoEstado)) {
+                $success = true;
+                $successMessage = "Control {$control->numero_control_completo} actualizado y asignado al residente correctamente";
+            } else {
+                $errorMessage = 'Error al asignar el control al residente';
+            }
+        } elseif ($nuevoEstado === 'vacio') {
             // Desasignar control
             if ($control->desasignar($motivo, $admin->id)) {
                 $success = true;
@@ -1327,7 +1347,7 @@ class AdminController
         if (!$usuario) return;
 
         // Obtener configuración actual de tarifas
-        $sql = "SELECT * FROM configuracion_tarifas WHERE activo = 1 ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
+        $sql = "SELECT * FROM configuracion_tarifas WHERE activo = TRUE ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
         $configuracion = Database::fetchOne($sql);
 
         // Obtener última tasa BCV
@@ -1401,13 +1421,13 @@ class AdminController
 
         try {
             // Desactivar configuración actual
-            $sql = "UPDATE configuracion_tarifas SET activo = 0 WHERE activo = 1";
+            $sql = "UPDATE configuracion_tarifas SET activo = FALSE WHERE activo = TRUE";
             Database::execute($sql);
 
             // Insertar nueva configuración
             $sql = "INSERT INTO configuracion_tarifas
                     (monto_mensual_usd, meses_bloqueo, fecha_vigencia_inicio, activo, creado_por, fecha_creacion)
-                    VALUES (?, ?, NOW(), 1, ?, NOW())";
+                    VALUES (?, ?, NOW(), TRUE, ?, NOW())";
 
             Database::execute($sql, [$montoMensualidad, $mesesBloqueo, $admin->id]);
 
@@ -1984,7 +2004,7 @@ class AdminController
         }
 
         // Desactivar la configuración actual
-        $sql = "UPDATE configuracion_tarifas SET activo = 0 WHERE activo = 1";
+        $sql = "UPDATE configuracion_tarifas SET activo = FALSE WHERE activo = TRUE";
         Database::execute($sql);
 
         // Insertar nueva configuración
@@ -2069,7 +2089,7 @@ class AdminController
             writeLog("Tasa BCV actualizada automáticamente a $tasa por admin {$admin->email}", 'info');
 
             // Obtener fecha de registro
-            $sqlFecha = "SELECT DATE_FORMAT(fecha_registro, '%d/%m/%Y %H:%i') as fecha_formateada
+            $sqlFecha = "SELECT TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') as fecha_formateada
                          FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
             $resultado = Database::fetchOne($sqlFecha);
             $fechaActualizacion = $resultado['fecha_formateada'] ?? date('d/m/Y H:i');
@@ -2181,8 +2201,8 @@ class AdminController
 
                     $tasa = floatval($tasaStr);
 
-                    // Validar que la tasa esté en un rango razonable (entre 1 y 100,000 Bs/USD)
-                    if ($tasa >= 1 && $tasa <= 100000) {
+                    // Validar que la tasa sea mayor a 0
+                    if ($tasa > 0) {
                         writeLog("Tasa BCV consultada exitosamente: $tasa Bs/USD (patrón " . ($i + 1) . ")", 'info');
                         return $tasa;
                     }
@@ -2384,7 +2404,7 @@ class AdminController
             // Verificar usuarios sin apartamento
             $sql = "SELECT COUNT(*) as total FROM usuarios u
                     LEFT JOIN apartamento_usuario au ON u.id = au.usuario_id
-                    WHERE u.rol = 'cliente' AND au.id IS NULL AND u.activo = 1";
+                    WHERE u.rol = 'cliente' AND au.id IS NULL AND u.activo = TRUE";
             $result = Database::fetchOne($sql);
             if ($result['total'] > 0) {
                 $advertencias[] = "{$result['total']} clientes activos sin apartamento asignado";
@@ -2393,7 +2413,7 @@ class AdminController
             // Verificar apartamentos sin controles
             $sql = "SELECT COUNT(*) as total FROM apartamento_usuario au
                     LEFT JOIN controles c ON au.id = c.apartamento_usuario_id
-                    WHERE c.id IS NULL AND au.activo = 1";
+                    WHERE c.id IS NULL AND au.activo = TRUE";
             $result = Database::fetchOne($sql);
             if ($result['total'] > 0) {
                 $advertencias[] = "{$result['total']} apartamentos sin controles asignados";
@@ -2598,7 +2618,7 @@ class AdminController
         $sql = "SELECT a.id as apartamento_id, a.bloque, a.escalera, a.piso, a.numero_apartamento
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
@@ -2606,7 +2626,7 @@ class AdminController
         $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 ORDER BY ce.numero_control_completo";
         $controles = Database::fetchAll($sql, [$usuario->id]);
 
@@ -2618,7 +2638,7 @@ class AdminController
         // Obtener todos los apartamentos disponibles para el selector
         $sql = "SELECT id, bloque, escalera, piso, numero_apartamento
                 FROM apartamentos
-                WHERE activo = 1
+                WHERE activo = TRUE
                 ORDER BY bloque, escalera, piso, numero_apartamento";
         $apartamentosDisponibles = Database::fetchAll($sql);
 
@@ -2702,13 +2722,13 @@ class AdminController
 
             // Manejar cambio de apartamento
             $sql = "SELECT id, apartamento_id FROM apartamento_usuario
-                    WHERE usuario_id = ? AND activo = 1 LIMIT 1";
+                    WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
             $asignacionActual = Database::fetchOne($sql, [$usuario->id]);
 
             if ($apartamentoId > 0) {
                 if ($asignacionActual) {
                     if ($asignacionActual['apartamento_id'] != $apartamentoId) {
-                        $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                        $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                         Database::execute($sql, [$asignacionActual['id']]);
 
                         $sql = "INSERT INTO apartamento_usuario (usuario_id, apartamento_id, activo, fecha_asignacion)
@@ -2726,7 +2746,7 @@ class AdminController
                 }
             } else {
                 if ($asignacionActual) {
-                    $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                    $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                     Database::execute($sql, [$asignacionActual['id']]);
 
                     writeLog("Apartamento desasignado de usuario {$usuario->email} (ID: {$usuario->id})", 'info');
@@ -2784,6 +2804,8 @@ class AdminController
         }
 
         $solicitudId = (int)($_POST['solicitud_id'] ?? 0);
+        $controlId = (int)($_POST['control_id'] ?? 0);
+        $observaciones = trim($_POST['observaciones'] ?? '');
 
         if ($solicitudId <= 0) {
             echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
@@ -2797,11 +2819,70 @@ class AdminController
             exit;
         }
 
-        if ($solicitud->aprobar($admin->id, null)) {
+        if ($controlId > 0) {
+            $solicitud->control_id = $controlId;
+            $sqlSet = "UPDATE solicitudes_cambios SET control_id = ? WHERE id = ?";
+            Database::execute($sqlSet, [$controlId, $solicitudId]);
+        }
+
+        if ($solicitud->aprobar($admin->id, $observaciones)) {
             echo json_encode(['success' => true, 'message' => 'Solicitud aprobada exitosamente']);
         } else {
-            echo json_encode(['success' => false, 'message' => 'Error al aprobar la solicitud']);
+            echo json_encode(['success' => false, 'message' => 'Error al aprobar la solicitud. Verifique que los datos del control sean correctos.']);
         }
+        exit;
+    }
+
+    /**
+     * Obtener controles para la solicitud (AJAX/JSON)
+     */
+    public function obtenerControlesSolicitud(): void
+    {
+        $admin = $this->checkAuth();
+        if (!$admin) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        header('Content-Type: application/json');
+
+        $solicitudId = (int)($_GET['solicitud_id'] ?? 0);
+        if ($solicitudId <= 0) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        require_once __DIR__ . '/../models/SolicitudCambio.php';
+        $solicitud = SolicitudCambio::findById($solicitudId);
+
+        if (!$solicitud) {
+            echo json_encode(['success' => false, 'controles' => []]);
+            exit;
+        }
+
+        $tipo = $solicitud->tipo_solicitud;
+        $controles = [];
+
+        if (in_array($tipo, ['desincorporar_control', 'suspension_control', 'desactivacion_control', 'reportar_perdido'])) {
+            $sql = "SELECT id, numero_control_completo, receptor, posicion_numero, estado
+                    FROM controles_estacionamiento
+                    WHERE apartamento_usuario_id = ? AND estado != 'vacio'
+                    ORDER BY posicion_numero, receptor";
+            $controles = Database::fetchAll($sql, [$solicitud->apartamento_usuario_id]);
+        } elseif (in_array($tipo, ['agregar_control', 'comprar_control', 'reactivar_control'])) {
+            $sql = "SELECT id, numero_control_completo, receptor, posicion_numero, estado
+                    FROM controles_estacionamiento
+                    WHERE (estado = 'vacio' OR apartamento_usuario_id IS NULL)
+                    ORDER BY posicion_numero, receptor";
+            $controles = Database::fetchAll($sql);
+        }
+
+        echo json_encode([
+            'success' => true,
+            'tipo' => $tipo,
+            'control_actual_id' => $solicitud->control_id,
+            'controles' => $controles
+        ]);
         exit;
     }
 
@@ -2972,8 +3053,9 @@ class AdminController
         AuthController::forzarCambioPasswordSiNecesario($usuario);
 
         // Filtros
-        $mesesMinimos = intval($_GET['meses_min'] ?? 1);
+        $mesesMinimos = isset($_GET['meses_min']) && $_GET['meses_min'] !== '' ? intval($_GET['meses_min']) : 0;
         $bloque = sanitize($_GET['torre'] ?? '');
+        $busqueda = sanitize($_GET['busqueda'] ?? '');
         $orden = sanitize($_GET['orden'] ?? 'meses_desc');
 
         $sql = "SELECT
@@ -2985,17 +3067,19 @@ class AdminController
                     a.bloque as torre,
                     a.numero_apartamento as apartamento,
                     COUNT(m.id) as meses_vencidos,
-                    SUM(m.monto_usd) as deuda_total,
+                    COALESCE(SUM(m.monto_usd), 0) as deuda_total,
                     MIN(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as primera_mensualidad_vencida,
-                    MAX(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as ultima_mensualidad,
+                    (SELECT MAX(CONCAT(m2.anio, '-', LPAD(m2.mes::text, 2, '0'), '-01')) 
+                     FROM mensualidades m2 
+                     WHERE m2.apartamento_usuario_id = au.id AND m2.estado = 'pagada') as ultima_mensualidad,
                     (SELECT COUNT(*) 
                      FROM controles_estacionamiento ce 
                      JOIN apartamento_usuario au2 ON au2.id = ce.apartamento_usuario_id 
-                     WHERE au2.usuario_id = u.id AND au2.activo = 1) as total_controles
+                     WHERE au2.usuario_id = u.id AND au2.activo = TRUE) as total_controles
                 FROM usuarios u
                 JOIN apartamento_usuario au ON au.usuario_id = u.id AND au.activo = TRUE
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                JOIN mensualidades m ON m.apartamento_usuario_id = au.id AND m.estado IN ('pendiente', 'vencido')
+                LEFT JOIN mensualidades m ON m.apartamento_usuario_id = au.id AND m.fecha_vencimiento < CURRENT_DATE AND m.estado IN ('pendiente', 'vencido')
                 WHERE 1=1";
 
         $params = [];
@@ -3005,9 +3089,17 @@ class AdminController
             $params[] = $bloque;
         }
 
-        $sql .= " GROUP BY u.id, a.id
-                  HAVING COUNT(m.id) >= ?";
+        if ($busqueda) {
+            $sql .= " AND (u.nombre_completo ILIKE ? OR u.email ILIKE ? OR u.cedula ILIKE ? OR CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?)";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+        }
 
+        $sql .= " GROUP BY u.id, u.nombre_completo, u.email, u.telefono, u.cedula, a.bloque, a.numero_apartamento, au.id, a.id";
+        
+        $sql .= " HAVING COUNT(m.id) >= ?";
         $params[] = $mesesMinimos;
 
         // Ordenamiento
@@ -3048,3 +3140,4 @@ class AdminController
         require_once __DIR__ . '/../views/admin/reporte_morosidad.php';
     }
 }
+

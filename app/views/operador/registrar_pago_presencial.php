@@ -20,20 +20,30 @@ require_once __DIR__ . '/../layouts/header.php';
             <!-- Header Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded shadow-sm border-start border-4 border-success">
                         <div>
-                            <h4 class="mb-1">
-                                <i class="bi bi-cash-coin text-primary"></i>
-                                <?php if (($_GET['modo'] ?? '') === 'adelantado'): ?>
+                            <h4 class="mb-1 text-dark fw-bold">
+                                <i class="bi bi-cash-coin text-success"></i>
+                                <?php if (isset($cliente)): ?>
+                                    Registrar Pago - <span class="text-primary"><?= htmlspecialchars($cliente->nombre_completo) ?></span>
+                                <?php elseif (($_GET['modo'] ?? '') === 'adelantado'): ?>
                                     Pagos Adelantados
                                 <?php else: ?>
                                     Registrar Pago Presencial
                                 <?php endif; ?>
                             </h4>
-                            <p class="text-muted mb-0">Registra pagos presenciales de clientes del estacionamiento</p>
+                            <?php if (isset($cliente)): ?>
+                                <p class="text-muted mb-0 small">
+                                    <i class="bi bi-person-circle"></i> Cliente: <strong><?= htmlspecialchars($cliente->nombre_completo) ?></strong> 
+                                    | <i class="bi bi-envelope"></i> <?= htmlspecialchars($cliente->email) ?>
+                                    <?php if (!empty($cliente->cedula)): ?> | <i class="bi bi-card-text"></i> Cédula: <?= htmlspecialchars($cliente->cedula) ?><?php endif; ?>
+                                </p>
+                            <?php else: ?>
+                                <p class="text-muted mb-0">Registra pagos presenciales de clientes del estacionamiento</p>
+                            <?php endif; ?>
                         </div>
                         <?php if (isset($cliente)): ?>
-                        <a href="<?= url('operador/registrar-pago-presencial') ?>" class="btn btn-outline-secondary">
+                        <a href="<?= url('operador/registrar-pago-presencial') ?>" class="btn btn-outline-secondary btn-sm shadow-sm">
                             <i class="bi bi-arrow-left"></i> Buscar otro cliente
                         </a>
                         <?php endif; ?>
@@ -104,11 +114,26 @@ class RegistrarPagoPresencial {
         this.setupCurrencyConversion();
         this.setupFormValidation();
         this.setupSelectionButtons();
+
+        // Evitar deselección de meses bloqueados (clic en cualquier parte de la tarjeta o etiqueta)
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.locked-month')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
     }
 
     setupTotalCalculation() {
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('mensualidad-checkbox')) {
+                const item = e.target.closest('.mensualidad-item');
+                if (item && item.classList.contains('locked-month')) {
+                    e.target.checked = true;
+                    e.preventDefault();
+                    return false;
+                }
                 this.validarSeleccionSecuencial();
                 this.updateContador();
                 this.calcularTotal();
@@ -128,31 +153,49 @@ class RegistrarPagoPresencial {
             return fechaA - fechaB;
         });
         
-        // Encontrar el primer mes no seleccionado
-        let primerMesNoSeleccionado = -1;
-        
+        // Encontrar el último mes seleccionado
+        let ultimoMesSeleccionado = -1;
         items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            
-            if (!checkbox.checked && primerMesNoSeleccionado === -1) {
+            if (checkbox && checkbox.checked) {
+                ultimoMesSeleccionado = index;
+            }
+        });
+
+        // Encontrar el primer mes no seleccionado
+        let primerMesNoSeleccionado = -1;
+        items.forEach((item, index) => {
+            const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox && !checkbox.checked && primerMesNoSeleccionado === -1) {
                 primerMesNoSeleccionado = index;
             }
         });
         
-        // Deshabilitar todos los meses después del primer mes no seleccionado
         items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            
-            // Si hay un mes no seleccionado y este mes está después de él
-            if (primerMesNoSeleccionado !== -1 && index > primerMesNoSeleccionado && !checkbox.checked) {
-                checkbox.disabled = true;
-                item.classList.add('disabled-month');
+            if (!checkbox) return;
+
+            // Resetear estados comunes
+            checkbox.classList.remove('locked-checkbox');
+            checkbox.style.pointerEvents = 'auto';
+            item.classList.remove('locked-month');
+            item.classList.remove('disabled-month');
+
+            if (checkbox.checked) {
+                // Si hay meses seleccionados después de este, bloquearlo para que no se pueda deseleccionar
+                if (ultimoMesSeleccionado > index) {
+                    checkbox.classList.add('locked-checkbox');
+                    checkbox.style.pointerEvents = 'none';
+                    item.classList.add('locked-month');
+                }
             } else {
-                // Solo habilitar si no está ya seleccionado
-                if (!checkbox.checked) {
+                // Si es un mes no seleccionado y está después del primer mes no seleccionado, deshabilitarlo
+                if (primerMesNoSeleccionado !== -1 && index > primerMesNoSeleccionado) {
+                    checkbox.disabled = true;
+                    item.classList.add('disabled-month');
+                } else {
                     checkbox.disabled = false;
                 }
-                item.classList.remove('disabled-month');
             }
         });
     }
@@ -173,8 +216,11 @@ class RegistrarPagoPresencial {
             // Actualizar símbolo inmediatamente
             actualizarSimboloMoneda();
 
-            // Actualizar símbolo cuando cambie la moneda
-            monedaSelect.addEventListener('change', actualizarSimboloMoneda);
+            // Actualizar símbolo y recalcular monto total cuando cambie la moneda
+            monedaSelect.addEventListener('change', () => {
+                actualizarSimboloMoneda();
+                this.calcularTotal();
+            });
 
             // Actualizar conversión cuando cambien los valores
             [monedaSelect, montoInput].forEach(element => {
@@ -240,9 +286,8 @@ class RegistrarPagoPresencial {
     seleccionarTodos() {
         const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
         checkboxes.forEach(checkbox => {
-            if (!checkbox.disabled) {
-                checkbox.checked = true;
-            }
+            checkbox.disabled = false;
+            checkbox.checked = true;
         });
         this.validarSeleccionSecuencial();
         this.updateContador();
@@ -251,6 +296,7 @@ class RegistrarPagoPresencial {
     deseleccionarTodos() {
         const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
         checkboxes.forEach(checkbox => {
+            checkbox.disabled = false;
             checkbox.checked = false;
         });
         this.validarSeleccionSecuencial();
@@ -258,12 +304,15 @@ class RegistrarPagoPresencial {
     }
 
     seleccionarPorTipo(tipo) {
-        document.querySelectorAll('.mensualidad-checkbox').forEach(checkbox => {
+        const checkboxes = document.querySelectorAll('.mensualidad-checkbox');
+        checkboxes.forEach(cb => cb.disabled = false);
+
+        checkboxes.forEach(checkbox => {
             const item = checkbox.closest('.mensualidad-item');
-            if (item && item.dataset.tipo === tipo && !checkbox.disabled) {
-                checkbox.checked = true;
-            } else {
-                checkbox.checked = false;
+            if (tipo === 'pendiente') {
+                checkbox.checked = (item && item.dataset.tipo === 'pendiente');
+            } else if (tipo === 'futuro') {
+                checkbox.checked = (item && (item.dataset.tipo === 'pendiente' || item.dataset.tipo === 'futuro'));
             }
         });
         this.validarSeleccionSecuencial();
@@ -272,12 +321,17 @@ class RegistrarPagoPresencial {
 
     seleccionarSiguientesMeses(cantidad) {
         const items = Array.from(document.querySelectorAll('.mensualidad-item'));
-        this.deseleccionarTodos();
+        items.sort((a, b) => {
+            const fechaA = new Date(a.dataset.mes + '-01');
+            const fechaB = new Date(b.dataset.mes + '-01');
+            return fechaA - fechaB;
+        });
 
-        items.slice(0, cantidad).forEach(item => {
+        items.forEach((item, index) => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            if (checkbox && !checkbox.disabled) {
-                checkbox.checked = true;
+            if (checkbox) {
+                checkbox.disabled = false;
+                checkbox.checked = (index < cantidad);
             }
         });
         this.validarSeleccionSecuencial();
@@ -285,20 +339,27 @@ class RegistrarPagoPresencial {
     }
 
     seleccionarProximosMeses(cantidad) {
-        this.deseleccionarTodos();
         const items = Array.from(document.querySelectorAll('.mensualidad-item'));
-        const hoy = new Date();
+        items.sort((a, b) => {
+            const fechaA = new Date(a.dataset.mes + '-01');
+            const fechaB = new Date(b.dataset.mes + '-01');
+            return fechaA - fechaB;
+        });
 
         items.forEach(item => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            if (checkbox && !checkbox.disabled) {
+            if (checkbox) checkbox.disabled = false;
+        });
+
+        const hoy = new Date();
+        items.forEach(item => {
+            const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox) {
                 const mesTexto = item.dataset.mes;
-                const fechaItem = new Date(mesTexto + ' 1');
+                const fechaItem = new Date(mesTexto + '-01');
                 const mesesDiff = Math.floor((fechaItem - hoy) / (1000 * 60 * 60 * 24 * 30));
 
-                if (mesesDiff >= 0 && mesesDiff < cantidad) {
-                    checkbox.checked = true;
-                }
+                checkbox.checked = (mesesDiff < cantidad);
             }
         });
         this.validarSeleccionSecuencial();
@@ -306,20 +367,27 @@ class RegistrarPagoPresencial {
     }
 
     seleccionarPorRango(mesesInicio, mesesFin) {
-        this.deseleccionarTodos();
         const items = Array.from(document.querySelectorAll('.mensualidad-item'));
-        const hoy = new Date();
+        items.sort((a, b) => {
+            const fechaA = new Date(a.dataset.mes + '-01');
+            const fechaB = new Date(b.dataset.mes + '-01');
+            return fechaA - fechaB;
+        });
 
         items.forEach(item => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            if (checkbox && !checkbox.disabled) {
+            if (checkbox) checkbox.disabled = false;
+        });
+
+        const hoy = new Date();
+        items.forEach(item => {
+            const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox) {
                 const mesTexto = item.dataset.mes;
-                const fechaItem = new Date(mesTexto + ' 1');
+                const fechaItem = new Date(mesTexto + '-01');
                 const mesesDiff = Math.floor((fechaItem - hoy) / (1000 * 60 * 60 * 24 * 30));
 
-                if (mesesDiff >= mesesInicio && mesesDiff <= mesesFin) {
-                    checkbox.checked = true;
-                }
+                checkbox.checked = (mesesDiff <= mesesFin);
             }
         });
         this.validarSeleccionSecuencial();
@@ -327,13 +395,23 @@ class RegistrarPagoPresencial {
     }
 
     seleccionarUltimosMeses(cantidad) {
-        this.deseleccionarTodos();
         const items = Array.from(document.querySelectorAll('.mensualidad-item'));
+        items.sort((a, b) => {
+            const fechaA = new Date(a.dataset.mes + '-01');
+            const fechaB = new Date(b.dataset.mes + '-01');
+            return fechaA - fechaB;
+        });
 
-        items.slice(-cantidad).forEach(item => {
+        items.forEach(item => {
             const checkbox = item.querySelector('.mensualidad-checkbox');
-            if (checkbox && !checkbox.disabled) {
-                checkbox.checked = true;
+            if (checkbox) checkbox.disabled = false;
+        });
+
+        const totalItems = items.length;
+        items.forEach((item, index) => {
+            const checkbox = item.querySelector('.mensualidad-checkbox');
+            if (checkbox) {
+                checkbox.checked = (index >= totalItems - cantidad);
             }
         });
         this.validarSeleccionSecuencial();
@@ -373,6 +451,7 @@ class RegistrarPagoPresencial {
         const totalUSDElement = document.getElementById('totalUSD');
         const totalBSElement = document.getElementById('totalBS');
         const montoInput = document.getElementById('monto');
+        const monedaSelect = document.getElementById('moneda');
 
         if (totalUSDElement) {
             totalUSDElement.textContent = this.formatUSD(totalUSD);
@@ -388,7 +467,12 @@ class RegistrarPagoPresencial {
         }
 
         if (montoInput) {
-            montoInput.value = totalUSD.toFixed(2);
+            const moneda = monedaSelect ? monedaSelect.value : 'USD';
+            if (moneda === 'Bs') {
+                montoInput.value = totalBS.toFixed(2);
+            } else {
+                montoInput.value = totalUSD.toFixed(2);
+            }
         }
 
         this.actualizarConversion();
@@ -670,6 +754,6 @@ function generarMensualidadesFuturas(meses) {
     }
 }
 </script>
-<script src="<?= url('js/registrar-pago-presencial.js') ?>"></script>
+<script src="<?= url('js/registrar-pago-presencial.js') ?>?v=<?= time() ?>"></script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

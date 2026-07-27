@@ -6,9 +6,49 @@
 
     <!-- Common JS -->
     <script>
-        // Mobile sidebar toggle
-        document.getElementById('mobileToggle')?.addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('show');
+        // Mobile sidebar toggle & backdrop overlay
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mobileToggle = document.getElementById('mobileToggle');
+            const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+
+            // Crear backdrop si no existe
+            let backdrop = document.getElementById('sidebarBackdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.id = 'sidebarBackdrop';
+                backdrop.className = 'sidebar-backdrop';
+                document.body.appendChild(backdrop);
+            }
+
+            function openSidebar() {
+                sidebar?.classList.add('show');
+                backdrop?.classList.add('show');
+            }
+
+            function closeSidebar() {
+                sidebar?.classList.remove('show');
+                backdrop?.classList.remove('show');
+            }
+
+            mobileToggle?.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (sidebar?.classList.contains('show')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+
+            closeSidebarBtn?.addEventListener('click', closeSidebar);
+            backdrop?.addEventListener('click', closeSidebar);
+
+            // Cerrar menú al presionar la tecla Escape
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar?.classList.contains('show')) {
+                    closeSidebar();
+                }
+            });
         });
 
         // Auto-hide alerts after 5 seconds

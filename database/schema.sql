@@ -163,7 +163,7 @@ CREATE TABLE mensualidades (
     tasa_cambio_id INT NOT NULL COMMENT 'Tasa BCV usada para conversión',
 
     -- Estado
-    estado ENUM('pendiente', 'pagado', 'vencido') DEFAULT 'pendiente',
+    estado ENUM('pendiente', 'pagado', 'pagada', 'vencido') DEFAULT 'pendiente',
     fecha_vencimiento DATE NOT NULL COMMENT 'Último día del mes',
     fecha_generacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Día 5 del mes',
     bloqueado BOOLEAN DEFAULT FALSE COMMENT 'TRUE con 4+ meses sin pagar',

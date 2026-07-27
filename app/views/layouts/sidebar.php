@@ -12,12 +12,15 @@ function isActive(string $path): bool {
 ?>
 
 <div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-        <h4>
-            <i class="bi bi-p-square-fill"></i>
-            <?= APP_NAME ?>
-        </h4>
-        <div class="subtitle">Control de Estacionamiento</div>
+    <div class="sidebar-header d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0">
+                <i class="bi bi-p-square-fill"></i>
+                <?= APP_NAME ?>
+            </h4>
+            <div class="subtitle">Control de Estacionamiento</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white d-md-none border-0 ms-2" id="closeSidebarBtn" aria-label="Cerrar menú"></button>
     </div>
 
     <div class="sidebar-menu">
@@ -120,6 +123,10 @@ function isActive(string $path): bool {
                     <i class="bi bi-people"></i>
                     <span>Clientes y Controles</span>
                 </a>
+                <a href="<?= url('admin/reporteMorosidad') ?>" class="menu-item <?= isActive('admin/reporteMorosidad') ? 'active' : '' ?>">
+                    <i class="bi bi-calendar-check"></i>
+                    <span>Mensualidades de usuarios</span>
+                </a>
                 <a href="<?= url('operador/vista-controles') ?>" class="menu-item <?= isActive('operador/vista-controles') ? 'active' : '' ?>">
                     <i class="bi bi-grid-3x3"></i>
                     <span>Vista de Controles</span>
@@ -134,6 +141,18 @@ function isActive(string $path): bool {
                     ?>
                         <span class="badge bg-info"><?= $result['total'] ?></span>
                     <?php endif; ?>
+                </a>
+            </div>
+
+            <div class="menu-section">
+                <div class="menu-section-title">Gastos</div>
+                <a href="<?= url('operador/registrar-gasto') ?>" class="menu-item <?= isActive('operador/registrar-gasto') ? 'active' : '' ?>">
+                    <i class="bi bi-cart-plus"></i>
+                    <span>Registrar Gasto</span>
+                </a>
+                <a href="<?= url('operador/historial-gastos') ?>" class="menu-item <?= isActive('operador/historial-gastos') ? 'active' : '' ?>">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Historial de Gastos</span>
                 </a>
             </div>
 
@@ -154,8 +173,8 @@ function isActive(string $path): bool {
             <div class="menu-section">
                 <div class="menu-section-title">Reportes</div>
                 <a href="<?= url('consultor/reporte-morosidad') ?>" class="menu-item <?= isActive('consultor/reporte-morosidad') ? 'active' : '' ?>">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <span>Morosidad</span>
+                    <i class="bi bi-calendar-check"></i>
+                    <span>Mensualidades de Clientes</span>
                 </a>
                 <a href="<?= url('consultor/reporte-pagos') ?>" class="menu-item <?= isActive('consultor/reporte-pagos') ? 'active' : '' ?>">
                     <i class="bi bi-cash-stack"></i>
@@ -172,6 +191,22 @@ function isActive(string $path): bool {
                 <a href="<?= url('consultor/reporte-financiero') ?>" class="menu-item <?= isActive('consultor/reporte-financiero') ? 'active' : '' ?>">
                     <i class="bi bi-graph-up"></i>
                     <span>Financiero</span>
+                </a>
+                <a href="<?= url('consultor/reporte-gastos') ?>" class="menu-item <?= isActive('consultor/reporte-gastos') ? 'active' : '' ?>">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <span>Relación Ingresos/Egresos</span>
+                </a>
+            </div>
+
+            <div class="menu-section">
+                <div class="menu-section-title">Gastos</div>
+                <a href="<?= url('consultor/registrar-gasto') ?>" class="menu-item <?= isActive('consultor/registrar-gasto') ? 'active' : '' ?>">
+                    <i class="bi bi-cart-plus"></i>
+                    <span>Registrar Gasto</span>
+                </a>
+                <a href="<?= url('consultor/historial-gastos') ?>" class="menu-item <?= isActive('consultor/historial-gastos') ? 'active' : '' ?>">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Historial de Gastos</span>
                 </a>
             </div>
 

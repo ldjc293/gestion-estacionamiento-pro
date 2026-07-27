@@ -222,7 +222,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <strong>PHP:</strong> <?= phpversion() ?>
                             </li>
                             <li class="mb-2">
-                                <strong>Base de Datos:</strong> MySQL
+                                <?php
+                                $dbDriverName = 'PostgreSQL';
+                                try {
+                                    $driver = Database::getInstance()->getAttribute(PDO::ATTR_DRIVER_NAME);
+                                    $dbDriverName = ($driver === 'pgsql') ? 'PostgreSQL' : (($driver === 'mysql') ? 'MySQL' : ucfirst($driver));
+                                } catch (\Throwable $e) {
+                                    $dbDriverName = (($_ENV['DB_CONNECTION'] ?? 'pgsql') === 'pgsql') ? 'PostgreSQL' : 'MySQL';
+                                }
+                                ?>
+                                <strong>Base de Datos:</strong> <?= $dbDriverName ?>
                             </li>
                             <li class="mb-2">
                                 <strong>Servidor:</strong> <?= $_SERVER['SERVER_SOFTWARE'] ?? 'N/A' ?>
@@ -423,12 +432,6 @@ function actualizarTasaAutomatica(btn) {
 
 // Función helper para mostrar notificaciones toast
 function showToast(message, type = 'info') {
-    // Si existe un sistema de toasts en el proyecto, usarlo
-    if (typeof window.showToast === 'function') {
-        window.showToast(message, type);
-        return;
-    }
-
     // Si existe Bootstrap toast
     if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
         // Crear contenedor si no existe

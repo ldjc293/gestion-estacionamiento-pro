@@ -101,8 +101,9 @@ class Mensualidad
                  LEFT JOIN tasa_cambio_bcv t ON t.id = m.tasa_cambio_id
                  WHERE au.usuario_id = ?
                    AND au.activo = TRUE
+                   AND m.estado != 'pagada'
                    AND (
-                       m.estado IN ('pendiente', 'vencido') OR
+                       m.estado IN ('pendiente', 'vencido', 'vencida') OR
                        (m.fecha_vencimiento <= CURRENT_DATE AND NOT EXISTS(
                            SELECT 1 FROM pago_mensualidad pm
                            JOIN pagos p ON p.id = pm.pago_id
@@ -146,7 +147,7 @@ class Mensualidad
         // Primero generar mensualidades futuras si no existen
         self::generarMensualidadesFuturas($usuarioId, $mesesAdelante);
 
-        // Obtener todas las mensualidades del usuario ordenadas por fecha de vencimiento
+        // Obtener todas las mensualidades no pagadas del usuario ordenadas por fecha de vencimiento
         $sqlTodas = "SELECT m.*, au.cantidad_controles,
                             CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento,
                             t.tasa_usd_bs,
@@ -157,37 +158,19 @@ class Mensualidad
                      LEFT JOIN tasa_cambio_bcv t ON t.id = m.tasa_cambio_id
                      WHERE au.usuario_id = ?
                        AND au.activo = TRUE
+                       AND m.estado != 'pagada'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM pago_mensualidad pm
+                           JOIN pagos p ON p.id = pm.pago_id
+                           WHERE pm.mensualidad_id = m.id
+                             AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                       )
                      ORDER BY m.fecha_vencimiento ASC";
 
         $todasMensualidades = Database::fetchAll($sqlTodas, [$usuarioId]);
 
-        // Encontrar el índice de la primera mensualidad sin pago aprobado
-        $indicePrimeraPendiente = -1;
-        foreach ($todasMensualidades as $index => $mensualidad) {
-            // Verificar si tiene pago aprobado
-            $sqlPago = "SELECT COUNT(DISTINCT p.id) as tiene_pago
-                        FROM pago_mensualidad pm
-                        JOIN pagos p ON p.id = pm.pago_id
-                        WHERE pm.mensualidad_id = ?
-                          AND p.estado_comprobante IN ('aprobado', 'no_aplica')";
-
-            $resultadoPago = Database::fetchOne($sqlPago, [$mensualidad['id']]);
-            $tienePago = $resultadoPago && $resultadoPago['tiene_pago'] > 0;
-
-            // Si no tiene pago aprobado, marcar este índice como el inicio
-            if (!$tienePago) {
-                $indicePrimeraPendiente = $index;
-                break;
-            }
-        }
-
-        // Si no hay mensualidades pendientes, devolver array vacío
-        if ($indicePrimeraPendiente === -1) {
-            return [];
-        }
-
-        // Devolver las mensualidades consecutivas desde la primera pendiente, limitado al máximo especificado
-        $mensualidadesConsecutivas = array_slice($todasMensualidades, $indicePrimeraPendiente, $mesesAdelante);
+        // Devolver las primeras mensualidades limitadas al máximo especificado (ya vienen filtradas e impecables)
+        $mensualidadesConsecutivas = array_slice($todasMensualidades, 0, $mesesAdelante);
 
         return array_map(fn($row) => self::hydrate($row), $mensualidadesConsecutivas);
     }
@@ -220,7 +203,7 @@ class Mensualidad
                        WHERE pm.mensualidad_id = m.id
                          AND p.estado_comprobante IN ('aprobado', 'no_aplica')
                    )
-                 GROUP BY u.id
+                 GROUP BY u.id, u.nombre_completo, u.email
                  HAVING meses_pendientes >= ?
                  ORDER BY meses_pendientes DESC";
 
@@ -372,7 +355,7 @@ class Mensualidad
                       AND au.activo = TRUE
                       AND u.activo = TRUE
                       AND u.exonerado = FALSE
-                    GROUP BY au.id
+                    GROUP BY au.id, au.usuario_id
                     HAVING meses_mora >= ?";
 
             $morosos = Database::fetchAll($sql, [MESES_BLOQUEO]);
@@ -435,6 +418,11 @@ class Mensualidad
         $mesesCount = 0;
 
         foreach ($todasMensualidades as $mensualidad) {
+            // Si el estado en BD es pagada, ignorar inmediatamente
+            if (($mensualidad['estado'] ?? '') === 'pagada') {
+                continue;
+            }
+
             // Verificar si tiene pago aprobado
             $sqlPago = "SELECT COUNT(DISTINCT p.id) as tiene_pago
                         FROM pago_mensualidad pm
@@ -508,7 +496,7 @@ class Mensualidad
                 LEFT JOIN pago_mensualidad pm ON pm.mensualidad_id = m.id
                 LEFT JOIN pagos p ON p.id = pm.pago_id AND p.estado_comprobante = 'aprobado'
                 WHERE au.usuario_id = ?
-                GROUP BY m.id
+                GROUP BY m.id, a.bloque, a.numero_apartamento, t.tasa_usd_bs
                 ORDER BY m.anio DESC, m.mes DESC";
 
         return Database::fetchAll($sql, [$usuarioId]);
@@ -621,8 +609,8 @@ class Mensualidad
             $mesActual = (int)date('n');
             $anioActual = (int)date('Y');
 
-            // Generar mensualidades para los próximos meses
-            for ($i = 1; $i <= $mesesAdelante; $i++) {
+            // Generar mensualidades para el mes actual y los próximos meses
+            for ($i = 0; $i <= $mesesAdelante; $i++) {
                 $mes = $mesActual + $i;
                 $anio = $anioActual;
 
@@ -710,10 +698,11 @@ class Mensualidad
         try {
             Database::beginTransaction();
 
-            // Obtener datos del apartamento del usuario
-            $sql = "SELECT au.id, au.cantidad_controles, a.bloque, a.numero_apartamento
+            // Obtener datos del apartamento y fecha de registro del usuario
+            $sql = "SELECT au.id, au.cantidad_controles, a.bloque, a.numero_apartamento, u.fecha_registro
                     FROM apartamento_usuario au
                     JOIN apartamentos a ON a.id = au.apartamento_id
+                    JOIN usuarios u ON u.id = au.usuario_id
                     WHERE au.usuario_id = ? AND au.activo = TRUE
                     LIMIT 1";
 
@@ -722,6 +711,12 @@ class Mensualidad
             if (!$apartamentoUsuario) {
                 throw new Exception("El usuario no tiene un apartamento activo");
             }
+
+            // La fecha límite mínima hacia atrás NUNCA debe ser anterior al mes en que se registró el usuario
+            $fechaRegistroUser = $apartamentoUsuario['fecha_registro'] ?? date('Y-m-d');
+            $mesReg = (int)date('n', strtotime($fechaRegistroUser));
+            $anioReg = (int)date('Y', strtotime($fechaRegistroUser));
+            $fechaRegistroLimite = strtotime("$anioReg-$mesReg-01");
 
             // Obtener la fecha más antigua de mensualidad existente
             $sqlFechaMinima = "SELECT MIN(make_date(anio, mes, 1)) as fecha_minima
@@ -732,7 +727,7 @@ class Mensualidad
             $resultadoFecha = Database::fetchOne($sqlFechaMinima, [$usuarioId]);
             $fechaInicio = $resultadoFecha && $resultadoFecha['fecha_minima']
                          ? $resultadoFecha['fecha_minima']
-                         : date('Y-01-01'); // Inicio del año actual si no hay mensualidades
+                         : date('Y-m-01'); // Inicio del año actual si no hay mensualidades
 
             // Obtener última tasa BCV
             $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv
@@ -758,9 +753,10 @@ class Mensualidad
             $mesActual = (int)date('n');
             $anioActual = (int)date('Y');
 
-            // Generar mensualidades desde la fecha mínima hacia atrás hasta 3 meses atrás del mes actual
+            // Generar mensualidades desde la fecha mínima hacia atrás sin superar la fecha de registro del usuario ni 3 meses atrás
             $fechaActual = strtotime($fechaInicio);
-            $fechaLimite = strtotime('-3 months', strtotime(date('Y-m-01'))); // No generar antes de 3 meses atrás
+            $fechaLimiteCalculada = strtotime('-3 months', strtotime(date('Y-m-01')));
+            $fechaLimite = max($fechaLimiteCalculada, $fechaRegistroLimite);
 
             while ($fechaActual >= $fechaLimite) {
                 $mes = (int)date('n', $fechaActual);

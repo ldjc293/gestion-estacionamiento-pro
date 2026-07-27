@@ -165,11 +165,22 @@ class SolicitudCambio
 
                 case 'agregar_control':
                 case 'comprar_control':
-                    // Para estos casos, asumimos que se aprueba el aumento de la cuota
-                    // El operador deberá asignar el control físico manualmente después
-                    // O podríamos automatizarlo si tuviéramos lógica de asignación automática
-                    // Por ahora, solo aumentamos la cantidad permitida si no se especificó control
-                    if (!$this->control_id) {
+                    require_once __DIR__ . '/Control.php';
+                    if ($this->control_id) {
+                        $control = Control::findById($this->control_id);
+                        if ($control) {
+                            $resultadoAccion = $control->asignar($this->apartamento_usuario_id, $aprobadoPor);
+                            if ($resultadoAccion) {
+                                // Actualizar cantidad de controles asignados en apartamento_usuario
+                                $sqlCount = "SELECT COUNT(*) as total FROM controles_estacionamiento WHERE apartamento_usuario_id = ? AND estado = 'activo'";
+                                $countRow = Database::fetchOne($sqlCount, [$this->apartamento_usuario_id]);
+                                $nuevaCantidad = $countRow ? (int)$countRow['total'] : 1;
+                                Database::execute("UPDATE apartamento_usuario SET cantidad_controles = ? WHERE id = ?", [$nuevaCantidad, $this->apartamento_usuario_id]);
+                            }
+                        } else {
+                            $resultadoAccion = false;
+                        }
+                    } else {
                         $resultadoAccion = $this->incrementarCantidadControles();
                     }
                     break;

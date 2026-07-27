@@ -5,17 +5,17 @@
 
     <!-- Monthly Payments Selection -->
     <div class="mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-3 gap-2">
             <h5 class="mb-0">
                 <i class="bi bi-list-check text-primary me-2"></i>
                 Seleccionar Mensualidades
             </h5>
             <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-outline-primary" id="seleccionar-todos" onclick="seleccionarTodos()">
-                    <i class="bi bi-check-all me-1"></i>Seleccionar Todos
+                <button type="button" class="btn btn-outline-primary btn-sm" id="seleccionar-todos" onclick="seleccionarTodos()" title="Seleccionar Todos">
+                    <i class="bi bi-check-all me-1"></i><span class="d-none d-sm-inline">Seleccionar Todos</span><span class="d-inline d-sm-none">Todos</span>
                 </button>
-                <button type="button" class="btn btn-outline-secondary" id="deseleccionar-todos" onclick="deseleccionarTodos()">
-                    <i class="bi bi-x-square me-1"></i>Deseleccionar
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="deseleccionar-todos" onclick="deseleccionarTodos()" title="Deseleccionar">
+                    <i class="bi bi-x-square me-1"></i><span class="d-none d-sm-inline">Deseleccionar</span><span class="d-inline d-sm-none">Ninguno</span>
                 </button>
             </div>
         </div>
@@ -154,21 +154,25 @@
                     foreach (is_array($mensualidadesPendientes) ? $mensualidadesPendientes : [] as $index => $mensualidad):
                         $fechaVencimiento = new DateTime($mensualidad->fecha_vencimiento);
                         $hoy = new DateTime();
-                        $esFutura = $fechaVencimiento > $hoy;
+                        
+                        $esMesActual = ((int)$mensualidad->mes === (int)date('n') && (int)$mensualidad->anio === (int)date('Y'));
+                        $esFutura = ($fechaVencimiento > $hoy) && !$esMesActual;
                         $esVencido = $mensualidad->estado === 'vencido';
                         $mesesDiff = ($fechaVencimiento->format('Y') - $hoy->format('Y')) * 12 +
                                    ($fechaVencimiento->format('n') - $hoy->format('n'));
 
-                        // Calcular monto dinámico basado en tarifa actual
-                        $montoDinamicoUSD = $montoPorControl * $cantidadControles;
+                        // Respetar el monto registrado de la mensualidad si proviene de la BD
+                        $cantControlesMes = $mensualidad->cantidad_controles ?? $cantidadControles;
+                        $montoDinamicoUSD = isset($mensualidad->monto_usd) && (float)$mensualidad->monto_usd > 0 ? (float)$mensualidad->monto_usd : ($montoPorControl * $cantControlesMes);
                         $montoDinamicoBS = $montoDinamicoUSD * ($tasaBCV ?: 36.40);
                         ?>
 
                         <div class="col-md-6 col-lg-4">
                             <div class="form-check p-3 border rounded position-relative
+                                 <?= $esMesActual ? 'border-primary bg-light shadow-sm' : '' ?>
                                  <?= $esFutura ? 'border-info bg-light' : '' ?>
                                  <?= $esVencido ? 'border-danger bg-light' : '' ?>
-                                 <?= !$esFutura && !$esVencido ? 'border-success' : '' ?>
+                                 <?= !$esFutura && !$esVencido && !$esMesActual ? 'border-success' : '' ?>
                                  mensualidad-item"
                                  data-monto="<?= $montoDinamicoUSD ?>"
                                  data-monto-bs="<?= $montoDinamicoBS ?>"
@@ -178,7 +182,11 @@
 
                                 <!-- Status Badge -->
                                 <div class="position-absolute top-0 end-0 p-1">
-                                    <?php if ($esFutura): ?>
+                                    <?php if ($esMesActual): ?>
+                                        <span class="badge bg-primary small">
+                                            <i class="bi bi-calendar-event"></i> Mes Actual
+                                        </span>
+                                    <?php elseif ($esFutura): ?>
                                         <span class="badge bg-info small">
                                             <i class="bi bi-calendar-plus"></i> Futuro
                                         </span>
@@ -366,8 +374,49 @@
     transform: none !important;
 }
 
+/* Estilos para meses seleccionados bloqueados (para no poder deseleccionar si hay meses posteriores seleccionados) */
+.locked-month {
+    background-color: #e8f5e9 !important;
+    border-color: #a5d6a7 !important;
+    position: relative;
+    box-shadow: inset 0 0 0 1px #81c784;
+    pointer-events: none !important;
+    user-select: none !important;
+}
+
+.locked-month * {
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
+
+.locked-month::after {
+    content: '🔒';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 14px;
+    opacity: 0.85;
+}
+
+.locked-month .form-check-input.locked-checkbox {
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+}
+
+.locked-month .form-check-label {
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+.locked-month:hover {
+    transform: none !important;
+    cursor: not-allowed !important;
+}
+
 /* Mensualidad normal con hover */
-.mensualidad-item:not(.disabled-month):hover {
+.mensualidad-item:not(.disabled-month):not(.locked-month):hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     transition: all 0.2s ease;

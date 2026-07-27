@@ -69,8 +69,9 @@ class ConsultorController
         if (!$usuario) return;
 
         // Filtros
-        $mesesMinimos = intval($_GET['meses_min'] ?? 1);
+        $mesesMinimos = isset($_GET['meses_min']) && $_GET['meses_min'] !== '' ? intval($_GET['meses_min']) : 0;
         $bloque = sanitize($_GET['torre'] ?? '');
+        $busqueda = sanitize($_GET['busqueda'] ?? '');
         $orden = sanitize($_GET['orden'] ?? 'meses_desc');
 
         $sql = "SELECT
@@ -82,17 +83,19 @@ class ConsultorController
                     a.bloque as torre,
                     a.numero_apartamento as apartamento,
                     COUNT(m.id) as meses_vencidos,
-                    SUM(m.monto_usd) as deuda_total,
+                    COALESCE(SUM(m.monto_usd), 0) as deuda_total,
                     MIN(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as primera_mensualidad_vencida,
-                    MAX(CONCAT(m.anio, '-', LPAD(m.mes::text, 2, '0'), '-01')) as ultima_mensualidad,
+                    (SELECT MAX(CONCAT(m2.anio, '-', LPAD(m2.mes::text, 2, '0'), '-01')) 
+                     FROM mensualidades m2 
+                     WHERE m2.apartamento_usuario_id = au.id AND m2.estado = 'pagada') as ultima_mensualidad,
                     (SELECT COUNT(*) 
                      FROM controles_estacionamiento ce 
                      JOIN apartamento_usuario au2 ON au2.id = ce.apartamento_usuario_id 
-                     WHERE au2.usuario_id = u.id AND au2.activo = 1) as total_controles
+                     WHERE au2.usuario_id = u.id AND au2.activo = TRUE) as total_controles
                 FROM usuarios u
                 JOIN apartamento_usuario au ON au.usuario_id = u.id AND au.activo = TRUE
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                JOIN mensualidades m ON m.apartamento_usuario_id = au.id AND m.estado IN ('pendiente', 'vencido')
+                LEFT JOIN mensualidades m ON m.apartamento_usuario_id = au.id AND m.fecha_vencimiento < CURRENT_DATE AND m.estado IN ('pendiente', 'vencido')
                 WHERE 1=1";
 
         $params = [];
@@ -102,9 +105,17 @@ class ConsultorController
             $params[] = $bloque;
         }
 
-        $sql .= " GROUP BY u.id, a.id
-                  HAVING COUNT(m.id) >= ?";
+        if ($busqueda) {
+            $sql .= " AND (u.nombre_completo ILIKE ? OR u.email ILIKE ? OR u.cedula ILIKE ? OR CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?)";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+            $params[] = "%$busqueda%";
+        }
 
+        $sql .= " GROUP BY u.id, u.nombre_completo, u.email, u.telefono, u.cedula, a.bloque, a.numero_apartamento, au.id, a.id";
+        
+        $sql .= " HAVING COUNT(m.id) >= ?";
         $params[] = $mesesMinimos;
 
         // Ordenamiento
@@ -353,19 +364,19 @@ class ConsultorController
                     (SELECT COUNT(*) 
                      FROM controles_estacionamiento c 
                      JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id 
-                     WHERE au2.apartamento_id = a.id AND au2.activo = 1) as total_controles,
+                     WHERE au2.apartamento_id = a.id AND au2.activo = TRUE) as total_controles,
                     (SELECT COUNT(*) 
                      FROM mensualidades m 
                      JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id 
-                     WHERE au3.apartamento_id = a.id AND au3.activo = 1 AND m.estado = 'vencida') as mensualidades_vencidas,
+                     WHERE au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado = 'vencida') as mensualidades_vencidas,
                     (SELECT COALESCE(SUM(m2.monto_usd), 0)
                      FROM mensualidades m2 
                      JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id 
-                     WHERE au4.apartamento_id = a.id AND au4.activo = 1 AND m2.estado = 'vencida') as deuda_total
+                     WHERE au4.apartamento_id = a.id AND au4.activo = TRUE AND m2.estado = 'vencida') as deuda_total
                 FROM apartamentos a
-                LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                 LEFT JOIN usuarios u ON u.id = au.usuario_id
-                WHERE a.activo = 1";
+                WHERE a.activo = TRUE";
         
         $params = [];
 
@@ -375,9 +386,9 @@ class ConsultorController
         }
 
         if ($estadoResidente === 'activo') {
-            $sql .= " AND u.activo = 1";
+            $sql .= " AND u.activo = TRUE";
         } elseif ($estadoResidente === 'inactivo') {
-            $sql .= " AND (u.activo = 0 OR u.id IS NULL)";
+            $sql .= " AND (u.activo = FALSE OR u.id IS NULL)";
         }
 
         // Para filtrar por morosidad, usamos HAVING ya que son columnas calculadas o agregadas
@@ -430,7 +441,7 @@ class ConsultorController
                         SUM(CASE WHEN (SELECT COUNT(*) FROM mensualidades m WHERE m.apartamento_usuario_id = au.id AND m.estado = 'vencida') > 0 THEN 1 ELSE 0 END) as con_morosidad,
                         (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au5 ON au5.id = c.apartamento_usuario_id WHERE au5.apartamento_id IN (SELECT id FROM apartamentos WHERE bloque = a.bloque)) as controles_asignados_aprox 
                        FROM apartamentos a
-                       LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                       LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                        GROUP BY a.bloque
                        ORDER BY a.bloque";
                        
@@ -449,7 +460,7 @@ class ConsultorController
                             JOIN apartamentos a2 ON a2.id = au2.apartamento_id 
                             WHERE a2.bloque = ?) as controles_asignados
                            FROM apartamentos a 
-                           LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                           LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                            WHERE a.bloque = ?";
             
             $detalle = Database::fetchOne($sqlDetalle, [$torre, $torre]);
@@ -457,7 +468,7 @@ class ConsultorController
             // Morosidad torre
             $sqlMorosidadTorre = "SELECT COUNT(DISTINCT au.id) as morosos 
                                   FROM apartamentos a
-                                  JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                                  JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                                   JOIN mensualidades m ON m.apartamento_usuario_id = au.id
                                   WHERE a.bloque = ? AND m.estado = 'vencida'";
             $morosidadT = Database::fetchOne($sqlMorosidadTorre, [$torre]);
@@ -503,13 +514,13 @@ class ConsultorController
                     u.email,
                     u.telefono,
                     u.activo as usuario_activo,
-                    (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = 1) as total_controles,
-                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = 1 AND m.estado = 'vencida') as mensualidades_vencidas,
-                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = 1 AND m2.estado = 'vencida') as deuda_total
+                    (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = TRUE) as total_controles,
+                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado = 'vencida') as mensualidades_vencidas,
+                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = TRUE AND m2.estado = 'vencida') as deuda_total
                 FROM apartamentos a
-                LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                LEFT JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                 LEFT JOIN usuarios u ON u.id = au.usuario_id
-                WHERE a.activo = 1";
+                WHERE a.activo = TRUE";
         
         $params = [];
 
@@ -519,9 +530,9 @@ class ConsultorController
         }
 
         if ($estadoResidente === 'activo') {
-            $sql .= " AND u.activo = 1";
+            $sql .= " AND u.activo = TRUE";
         } elseif ($estadoResidente === 'inactivo') {
-            $sql .= " AND (u.activo = 0 OR u.id IS NULL)";
+            $sql .= " AND (u.activo = FALSE OR u.id IS NULL)";
         }
 
         $sql .= " ORDER BY a.bloque, a.escalera, a.piso, a.numero_apartamento";
@@ -618,23 +629,23 @@ class ConsultorController
         // 1. Finanzas y Totales
         $sqlFinanzas = "SELECT 
                             COUNT(*) as total_pagos,
-                            SUM(CASE WHEN moneda_pago LIKE 'usd%' THEN monto_usd ELSE 0 END) as ingresos_usd,
-                            SUM(CASE WHEN moneda_pago LIKE 'bs%' THEN monto_bs ELSE 0 END) as ingresos_bs
+                            SUM(monto_usd) as ingresos_usd,
+                            SUM(monto_bs) as ingresos_bs
                         FROM pagos 
                         WHERE DATE(fecha_pago) BETWEEN ? AND ? 
-                          AND estado_comprobante = 'aprobado'";
+                          AND estado_comprobante IN ('aprobado', 'no_aplica')";
         
         $finanzasData = Database::fetchOne($sqlFinanzas, [$inicio, $fin]);
         
-        // Calcular deuda pendiente (total sistema, no depende del periodo temporal de pagos, es snapshot)
-        $sqlDeuda = "SELECT SUM(monto_usd) as deuda FROM mensualidades WHERE estado = 'vencida'";
+        // Calcular deuda pendiente (total sistema, mensualidades no pagadas)
+        $sqlDeuda = "SELECT SUM(monto_usd) as deuda FROM mensualidades WHERE estado != 'pagada'";
         $deudaData = Database::fetchOne($sqlDeuda);
         
         // Mensualidades pagadas en el periodo (aproximación por fecha pago)
         $sqlMensualidades = "SELECT COUNT(*) as pagadas 
                              FROM pago_mensualidad pm
                              JOIN pagos p ON p.id = pm.pago_id
-                             WHERE DATE(p.fecha_pago) BETWEEN ? AND ? AND p.estado_comprobante = 'aprobado'";
+                             WHERE DATE(p.fecha_pago) BETWEEN ? AND ? AND p.estado_comprobante IN ('aprobado', 'no_aplica')";
         $mensualidadesData = Database::fetchOne($sqlMensualidades, [$inicio, $fin]);
 
         $finanzas = [
@@ -653,7 +664,7 @@ class ConsultorController
                             SUM(monto_bs) as total_bs
                        FROM pagos
                        WHERE DATE(fecha_pago) BETWEEN ? AND ?
-                         AND estado_comprobante = 'aprobado'
+                         AND estado_comprobante IN ('aprobado', 'no_aplica')
                        GROUP BY moneda_pago";
         
         $metodosData = Database::fetchAll($sqlMetodos, [$inicio, $fin]);
@@ -667,16 +678,12 @@ class ConsultorController
         }
 
         // 3. Tasa de Cobro (Mensualidades generadas vs pagadas que corresponden a meses dentro del rango)
-        // Esto es complejo porque 'periodo' aplica a fecha pago, pero tasa cobro suele ser por 'mes de deuda'.
-        // Asumiremos tasa de cobro sobre las mensualidades CUYA FECHA (mes/año) cae en el rango.
-        
         // Extraer rango meses/años
         $anioInicio = date('Y', strtotime($inicio));
         $mesInicio = date('n', strtotime($inicio));
         $anioFin = date('Y', strtotime($fin));
         $mesFin = date('n', strtotime($fin));
         
-        // Simplificación: Total mensualidades con fecha_vencimiento o similar en rango
         $sqlTasa = "SELECT 
                         COUNT(*) as generadas,
                         COUNT(CASE WHEN estado = 'pagada' THEN 1 END) as pagadas
@@ -704,8 +711,8 @@ class ConsultorController
                    JOIN usuarios u ON u.id = au.usuario_id
                    JOIN apartamentos a ON a.id = au.apartamento_id
                    WHERE DATE(p.fecha_pago) BETWEEN ? AND ?
-                     AND p.estado_comprobante = 'aprobado'
-                   GROUP BY u.id
+                     AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                   GROUP BY u.id, u.nombre_completo, a.bloque, a.numero_apartamento
                    ORDER BY total_pagos DESC, monto_total DESC
                    LIMIT 10";
                    
@@ -758,11 +765,11 @@ class ConsultorController
         // Obtener datos financieros
         $sqlFinanzas = "SELECT 
                             COUNT(*) as total_pagos,
-                            SUM(CASE WHEN moneda_pago LIKE 'usd%' THEN monto_usd ELSE 0 END) as ingresos_usd,
-                            SUM(CASE WHEN moneda_pago LIKE 'bs%' THEN monto_bs ELSE 0 END) as ingresos_bs
+                            SUM(monto_usd) as ingresos_usd,
+                            SUM(monto_bs) as ingresos_bs
                         FROM pagos 
                         WHERE DATE(fecha_pago) BETWEEN ? AND ? 
-                          AND estado_comprobante = 'aprobado'";
+                          AND estado_comprobante IN ('aprobado', 'no_aplica')";
         
         $finanzasData = Database::fetchOne($sqlFinanzas, [$inicio, $fin]);
 
@@ -774,7 +781,7 @@ class ConsultorController
                             SUM(monto_bs) as total_bs
                        FROM pagos
                        WHERE DATE(fecha_pago) BETWEEN ? AND ?
-                         AND estado_comprobante = 'aprobado'
+                         AND estado_comprobante IN ('aprobado', 'no_aplica')
                        GROUP BY moneda_pago";
         
         $metodosData = Database::fetchAll($sqlMetodos, [$inicio, $fin]);
@@ -791,8 +798,8 @@ class ConsultorController
                    JOIN usuarios u ON u.id = au.usuario_id
                    JOIN apartamentos a ON a.id = au.apartamento_id
                    WHERE DATE(p.fecha_pago) BETWEEN ? AND ?
-                     AND p.estado_comprobante = 'aprobado'
-                   GROUP BY u.id
+                     AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                   GROUP BY u.id, u.nombre_completo, a.bloque, a.numero_apartamento
                    ORDER BY monto_total DESC
                    LIMIT 10";
                    
@@ -1019,14 +1026,14 @@ class ConsultorController
                     u.telefono,
                     a.bloque as torre,
                     a.numero_apartamento as apartamento,
-                    (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = 1) as total_controles,
-                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = 1 AND m.estado = 'vencida') as meses_vencidos,
-                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = 1 AND m2.estado = 'vencida') as deuda_total,
-                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes::text, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = 1 AND m3.estado = 'vencida') as ultima_mensualidad
+                    (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = TRUE) as total_controles,
+                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado = 'vencida') as meses_vencidos,
+                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = TRUE AND m2.estado = 'vencida') as deuda_total,
+                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes::text, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = TRUE AND m3.estado = 'vencida') as ultima_mensualidad
                 FROM apartamentos a
-                JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = 1
+                JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                 JOIN usuarios u ON u.id = au.usuario_id
-                WHERE a.activo = 1";
+                WHERE a.activo = TRUE";
         
         $params = [];
 
@@ -1036,10 +1043,8 @@ class ConsultorController
         }
 
         // Subquery para morosidad filter
-        $sql .= " HAVING meses_vencidos > 0";
-
-        if ($mesesMin) {
-            $sql .= " AND meses_vencidos >= ?";
+        if ($mesesMin !== null && $mesesMin !== '') {
+            $sql .= " HAVING meses_vencidos >= ?";
             $params[] = intval($mesesMin);
         }
 
@@ -1311,7 +1316,7 @@ class ConsultorController
         $sql = "SELECT a.id as apartamento_id, a.bloque, a.escalera, a.piso, a.numero_apartamento
                 FROM apartamento_usuario au
                 JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 LIMIT 1";
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
@@ -1319,7 +1324,7 @@ class ConsultorController
         $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
-                WHERE au.usuario_id = ? AND au.activo = 1
+                WHERE au.usuario_id = ? AND au.activo = TRUE
                 ORDER BY ce.numero_control_completo";
         $controles = Database::fetchAll($sql, [$usuario->id]);
 
@@ -1331,7 +1336,7 @@ class ConsultorController
         // Obtener todos los apartamentos disponibles para el selector
         $sql = "SELECT id, bloque, escalera, piso, numero_apartamento
                 FROM apartamentos
-                WHERE activo = 1
+                WHERE activo = TRUE
                 ORDER BY bloque, escalera, piso, numero_apartamento";
         $apartamentosDisponibles = Database::fetchAll($sql);
 
@@ -1415,13 +1420,13 @@ class ConsultorController
 
             // Manejar cambio de apartamento
             $sql = "SELECT id, apartamento_id FROM apartamento_usuario
-                    WHERE usuario_id = ? AND activo = 1 LIMIT 1";
+                    WHERE usuario_id = ? AND activo = TRUE LIMIT 1";
             $asignacionActual = Database::fetchOne($sql, [$usuario->id]);
 
             if ($apartamentoId > 0) {
                 if ($asignacionActual) {
                     if ($asignacionActual['apartamento_id'] != $apartamentoId) {
-                        $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                        $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                         Database::execute($sql, [$asignacionActual['id']]);
 
                         $sql = "INSERT INTO apartamento_usuario (usuario_id, apartamento_id, activo, fecha_asignacion)
@@ -1439,7 +1444,7 @@ class ConsultorController
                 }
             } else {
                 if ($asignacionActual) {
-                    $sql = "UPDATE apartamento_usuario SET activo = 0 WHERE id = ?";
+                    $sql = "UPDATE apartamento_usuario SET activo = FALSE WHERE id = ?";
                     Database::execute($sql, [$asignacionActual['id']]);
 
                     writeLog("Apartamento desasignado de usuario {$usuario->email} (ID: {$usuario->id})", 'info');
@@ -1455,4 +1460,234 @@ class ConsultorController
 
         redirect('consultor/perfil');
     }
+
+    private function uploadGastoArchivo(array $file, string $prefix): ?string
+    {
+        $uploadDir = GASTOS_PATH . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        if (!in_array($ext, $allowed)) {
+            return null;
+        }
+
+        $nombreArchivo = $prefix . '_' . uniqid() . '.' . $ext;
+        $rutaDestino = $uploadDir . $nombreArchivo;
+
+        if (move_uploaded_file($file['tmp_name'], $rutaDestino)) {
+            return 'uploads/gastos/' . $nombreArchivo;
+        }
+        return null;
+    }
+
+    /**
+     * Registrar un nuevo gasto (Consultor)
+     */
+    public function registrarGasto(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $usuarioRol = 'consultor';
+        $postUrl = url('consultor/process-registrar-gasto');
+
+        require_once __DIR__ . '/../views/shared/registrar_gasto.php';
+    }
+
+    /**
+     * Procesar registro de gasto (Consultor)
+     */
+    public function processRegistrarGasto(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        // Validar CSRF
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        $nombre = sanitize($_POST['nombre'] ?? '');
+        $descripcion = sanitize($_POST['descripcion'] ?? '');
+        $monto = floatval($_POST['monto'] ?? 0);
+        $moneda = $_POST['moneda'] ?? '';
+        $metodoPago = $_POST['metodo_pago'] ?? '';
+        $fechaGasto = $_POST['fecha_gasto'] ?? date('Y-m-d');
+
+        // Validaciones
+        if (empty($nombre)) {
+            $_SESSION['error'] = 'El nombre del gasto es requerido';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        if ($monto <= 0) {
+            $_SESSION['error'] = 'El monto debe ser mayor a 0';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        if (!in_array($moneda, ['USD', 'Bs'])) {
+            $_SESSION['error'] = 'Moneda inválida';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        if (!in_array($metodoPago, ['efectivo', 'transferencia'])) {
+            $_SESSION['error'] = 'Método de pago inválido';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        // Subida de archivos
+        $comprobanteRuta = null;
+        $reciboRuta = null;
+
+        if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $comprobanteRuta = $this->uploadGastoArchivo($_FILES['comprobante'], 'comprobante');
+            if (!$comprobanteRuta) {
+                $_SESSION['error'] = 'Error al subir el comprobante. Debe ser una imagen válida (JPG, JPEG, PNG, GIF).';
+                redirect('consultor/registrar-gasto');
+                return;
+            }
+        } else {
+            $_SESSION['error'] = 'La foto del comprobante es obligatoria';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
+        if (isset($_FILES['recibo']) && $_FILES['recibo']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $reciboRuta = $this->uploadGastoArchivo($_FILES['recibo'], 'recibo');
+            if (!$reciboRuta) {
+                $_SESSION['error'] = 'Error al subir el recibo. Debe ser una imagen válida.';
+                redirect('consultor/registrar-gasto');
+                return;
+            }
+        }
+
+        require_once __DIR__ . '/../models/Gasto.php';
+
+        try {
+            Gasto::registrar([
+                'nombre' => $nombre,
+                'descripcion' => $descripcion,
+                'monto' => $monto,
+                'moneda' => $moneda,
+                'metodo_pago' => $metodoPago,
+                'fecha_gasto' => $fechaGasto,
+                'comprobante_ruta' => $comprobanteRuta,
+                'recibo_ruta' => $reciboRuta,
+                'registrado_por' => $usuario->id
+            ]);
+
+            writeLog("Gasto registrado por consultor {$usuario->email}: $nombre ($monto $moneda)", 'info');
+            $_SESSION['success'] = 'Gasto registrado correctamente';
+            redirect('consultor/historial-gastos');
+
+        } catch (Exception $e) {
+            writeLog("Error al registrar gasto: " . $e->getMessage(), 'error');
+            $_SESSION['error'] = 'Error interno al registrar el gasto. Intente de nuevo.';
+            redirect('consultor/registrar-gasto');
+        }
+    }
+
+    /**
+     * Ver historial de gastos (Consultor)
+     */
+    public function historialGastos(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $usuarioRol = 'consultor';
+
+        // Filtros
+        $filtros = [
+            'buscar' => $_GET['buscar'] ?? null,
+            'moneda' => $_GET['moneda'] ?? null,
+            'metodo_pago' => $_GET['metodo_pago'] ?? null,
+            'mes' => $_GET['mes'] ?? null,
+            'anio' => $_GET['anio'] ?? null
+        ];
+
+        require_once __DIR__ . '/../models/Gasto.php';
+        $gastos = Gasto::getAllConFiltros($filtros);
+
+        require_once __DIR__ . '/../views/shared/historial_gastos.php';
+    }
+
+    /**
+     * Reporte financiero comparativo (Relación de Gastos vs Ingresos)
+     */
+    public function reporteGastos(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $tipoFiltro = $_GET['tipo_filtro'] ?? 'mensual';
+        $mes = intval($_GET['mes'] ?? date('m'));
+        $anio = intval($_GET['anio'] ?? date('Y'));
+        $trimestre = intval($_GET['trimestre'] ?? ceil(date('m') / 3));
+        $fechaInicio = $_GET['fecha_inicio'] ?? date('Y-m-01');
+        $fechaFin = $_GET['fecha_fin'] ?? date('Y-m-t');
+
+        // Calcular rangos de fechas
+        if ($tipoFiltro === 'mensual') {
+            $fechaInicio = sprintf('%04d-%02d-01', $anio, $mes);
+            $fechaFin = date('Y-m-t', strtotime($fechaInicio));
+        } elseif ($tipoFiltro === 'trimestral') {
+            if ($trimestre === 1) {
+                $fechaInicio = "$anio-01-01";
+                $fechaFin = "$anio-03-31";
+            } elseif ($trimestre === 2) {
+                $fechaInicio = "$anio-04-01";
+                $fechaFin = "$anio-06-30";
+            } elseif ($trimestre === 3) {
+                $fechaInicio = "$anio-07-01";
+                $fechaFin = "$anio-09-30";
+            } else {
+                $fechaInicio = "$anio-10-01";
+                $fechaFin = "$anio-12-31";
+            }
+        } elseif ($tipoFiltro === 'anual') {
+            $fechaInicio = "$anio-01-01";
+            $fechaFin = "$anio-12-31";
+        }
+
+        require_once __DIR__ . '/../models/Gasto.php';
+        
+        // Obtener resumen financiero
+        $resumen = Gasto::getResumenFinanciero($fechaInicio, $fechaFin);
+
+        // Desglose de Egresos (Gastos) en el rango
+        $gastos = Gasto::getAllConFiltros([
+            'fecha_inicio' => $fechaInicio,
+            'fecha_fin' => $fechaFin
+        ]);
+
+        // Desglose de Ingresos (Pagos aprobados) en el rango
+        $sqlPagos = "SELECT p.*, u.nombre_completo as cliente_nombre,
+                            CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento
+                     FROM public.pagos p
+                     JOIN public.apartamento_usuario au ON au.id = p.apartamento_usuario_id
+                     JOIN public.usuarios u ON u.id = au.usuario_id
+                     JOIN public.apartamentos a ON a.id = au.apartamento_id
+                     WHERE p.estado_comprobante IN ('aprobado', 'no_aplica')
+                       AND DATE(p.fecha_pago) BETWEEN ? AND ?
+                     ORDER BY p.fecha_pago DESC";
+        $ingresosDetalle = Database::fetchAll($sqlPagos, [$fechaInicio, $fechaFin]);
+
+        require_once __DIR__ . '/../views/consultor/reporte_gastos.php';
+    }
 }
+

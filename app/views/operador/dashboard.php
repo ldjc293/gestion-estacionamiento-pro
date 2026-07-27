@@ -19,85 +19,75 @@ require_once __DIR__ . '/../layouts/header.php';
         <!-- Estadísticas del Día -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('operador/pagos-pendientes') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i class="bi bi-hourglass-split"></i>
                     </div>
                     <div class="value"><?= is_array($pagosPendientes) ? count($pagosPendientes) : 0 ?></div>
-                    <div class="label">Pagos Pendientes</div>
-                    <?php if (is_array($pagosPendientes) && count($pagosPendientes) > 0): ?>
-                        <a href="<?= url('operador/pagos-pendientes') ?>" class="btn btn-sm btn-warning mt-2 w-100">
-                            Revisar Ahora
-                        </a>
-                    <?php endif; ?>
-                </div>
+                    <div class="label text-muted">Pagos Pendientes</div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('operador/historial-pagos?estado=aprobado') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
                         <i class="bi bi-check-circle"></i>
                     </div>
                     <div class="value"><?= $estadisticasHoy['aprobados_hoy'] ?? 0 ?></div>
-                    <div class="label">Aprobados Hoy</div>
+                    <div class="label text-muted">Aprobados Hoy</div>
                     <div class="change positive">
                         <i class="bi bi-arrow-up"></i> <?= formatUSD($estadisticasHoy['total_usd'] ?? 0) ?>
                     </div>
-                </div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('operador/historial-pagos?estado=rechazado') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                         <i class="bi bi-x-circle"></i>
                     </div>
                     <div class="value"><?= $estadisticasHoy['rechazados_hoy'] ?? 0 ?></div>
-                    <div class="label">Rechazados Hoy</div>
-                </div>
+                    <div class="label text-muted">Rechazados Hoy</div>
+                </a>
             </div>
 
             <div class="col-md-3">
-                <div class="stat-card">
+                <a href="<?= url('operador/historial-pagos') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(37, 99, 235, 0.1); color: #2563eb;">
                         <i class="bi bi-cash-stack"></i>
                     </div>
                     <div class="value"><?= $estadisticasHoy['total_pagos'] ?? 0 ?></div>
-                    <div class="label">Total Pagos Hoy</div>
-                </div>
+                    <div class="label text-muted">Total Pagos Hoy</div>
+                </a>
             </div>
         </div>
 
         <!-- Estadísticas de Morosidad -->
         <div class="row mb-4">
             <div class="col-md-6">
-                <div class="stat-card">
+                <a href="<?= url('admin/reporteMorosidad') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
                         <i class="bi bi-exclamation-triangle"></i>
                     </div>
                     <div class="value"><?= $estadisticasMorosidad['total_morosos'] ?? 0 ?></div>
-                    <div class="label">Clientes Morosos</div>
+                    <div class="label text-muted">Mensualidades de Clientes</div>
                     <div class="change negative">
                         <i class="bi bi-arrow-up"></i> Requiere atención
                     </div>
-                </div>
+                </a>
             </div>
         </div>
 
         <!-- Segunda fila de estadísticas -->
         <div class="row mb-4">
             <div class="col-md-6">
-                <div class="stat-card">
+                <a href="<?= url('operador/solicitudes') ?>" class="stat-card d-block text-decoration-none h-100">
                     <div class="icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i class="bi bi-exclamation-triangle"></i>
                     </div>
                     <div class="value"><?= count($solicitudesPendientes) ?></div>
-                    <div class="label">Solicitudes Pendientes</div>
-                    <?php if (count($solicitudesPendientes) > 0): ?>
-                        <a href="<?= url('operador/solicitudes') ?>" class="btn btn-sm btn-warning mt-2 w-100">
-                            Revisar Ahora
-                        </a>
-                    <?php endif; ?>
-                </div>
+                    <div class="label text-muted">Solicitudes Pendientes</div>
+                </a>
             </div>
         </div>
 
@@ -216,7 +206,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="bi bi-grid"></i> Vista de Controles
                         </a>
                         <a href="<?= url('admin/reporteMorosidad') ?>" class="btn btn-outline-danger">
-                            <i class="bi bi-exclamation-triangle"></i> Reporte Morosidad
+                            <i class="bi bi-calendar-check"></i> Mensualidades de Clientes
                         </a>
                     </div>
                 </div>

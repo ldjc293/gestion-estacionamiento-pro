@@ -1,8 +1,8 @@
-﻿<?php
-$pageTitle = 'Reporte de Morosidad';
+<?php
+$pageTitle = 'Control de Mensualidades';
 $breadcrumb = [
     ['label' => 'Inicio', 'url' => url('admin/dashboard')],
-    ['label' => 'Reporte de Morosidad', 'url' => '#']
+    ['label' => 'Control de Mensualidades', 'url' => '#']
 ];
 
 require_once __DIR__ . '/../layouts/header.php';
@@ -19,7 +19,7 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
-                    <i class="bi bi-exclamation-triangle text-warning"></i> Reporte de Morosidad
+                    <i class="bi bi-calendar-check text-primary"></i> Control de Mensualidades
                 </h6>
                 <div class="btn-group btn-group-sm">
                     <button onclick="exportarExcel()" class="btn btn-success">
@@ -35,18 +35,25 @@ require_once __DIR__ . '/../layouts/header.php';
             </div>
             <div class="card-body">
                 <!-- Filtros -->
-                <form method="GET" class="row g-3 mb-4">
-                    <div class="col-md-3">
+                <form method="GET" class="row g-3 mb-4" id="formAdminMensualidades">
+                    <div class="col-md-3 position-relative">
+                        <label class="form-label">Buscar Cliente</label>
+                        <input type="text" name="busqueda" id="inputAdminBusqueda" class="form-control form-control-sm" value="<?= htmlspecialchars($_GET['busqueda'] ?? '') ?>" placeholder="Nombre, correo, cédula, apto..." autocomplete="off">
+                        <div id="autocompleteResultsAdminMens" class="position-relative">
+                            <div id="suggestionsListAdminMens" class="list-group position-absolute w-100 shadow border-0" style="z-index: 1000; max-height: 250px; overflow-y: auto; display: none;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label">Meses Vencidos</label>
                         <select name="meses_min" class="form-select form-select-sm">
-                            <option value="">Todos</option>
-                            <option value="1" <?= ($_GET['meses_min'] ?? '') === '1' ? 'selected' : '' ?>>1+ meses</option>
-                            <option value="2" <?= ($_GET['meses_min'] ?? '') === '2' ? 'selected' : '' ?>>2+ meses</option>
-                            <option value="3" <?= ($_GET['meses_min'] ?? '') === '3' ? 'selected' : '' ?>>3+ meses</option>
-                            <option value="4" <?= ($_GET['meses_min'] ?? '') === '4' ? 'selected' : '' ?>>4+ meses (Bloqueado)</option>
+                            <option value="0" <?= (!isset($_GET['meses_min']) || $_GET['meses_min'] === '0' || $_GET['meses_min'] === '') ? 'selected' : '' ?>>0+ meses (Todos)</option>
+                            <option value="1" <?= (isset($_GET['meses_min']) && $_GET['meses_min'] === '1') ? 'selected' : '' ?>>1+ meses</option>
+                            <option value="2" <?= (isset($_GET['meses_min']) && $_GET['meses_min'] === '2') ? 'selected' : '' ?>>2+ meses</option>
+                            <option value="3" <?= (isset($_GET['meses_min']) && $_GET['meses_min'] === '3') ? 'selected' : '' ?>>3+ meses</option>
+                            <option value="4" <?= (isset($_GET['meses_min']) && $_GET['meses_min'] === '4') ? 'selected' : '' ?>>4+ meses (Bloqueado)</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Bloque</label>
                         <select name="torre" class="form-select form-select-sm">
                             <option value="">Todas</option>
@@ -55,7 +62,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Ordenar por</label>
                         <select name="orden" class="form-select form-select-sm">
                             <option value="meses_desc" <?= ($_GET['orden'] ?? 'meses_desc') === 'meses_desc' ? 'selected' : '' ?>>Meses (Mayor a Menor)</option>
@@ -66,9 +73,14 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">&nbsp;</label>
-                        <button type="submit" class="btn btn-primary btn-sm w-100">
-                            <i class="bi bi-funnel"></i> Filtrar
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="bi bi-funnel"></i> Filtrar
+                            </button>
+                            <a href="?" class="btn btn-outline-secondary btn-sm w-100">
+                                <i class="bi bi-x-circle"></i> Limpiar
+                            </a>
+                        </div>
                     </div>
                 </form>
 
@@ -76,11 +88,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stat-card">
-                            <div class="icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                            <div class="icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
                                 <i class="bi bi-people"></i>
                             </div>
                             <div class="value"><?= count($morosos) ?></div>
-                            <div class="label">Clientes Morosos</div>
+                            <div class="label">Total Clientes</div>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -116,7 +128,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php if (empty($morosos)): ?>
                     <div class="text-center py-5">
                         <i class="bi bi-check-circle text-success" style="font-size: 80px;"></i>
-                        <h5 class="mt-3">Â¡Excelente!</h5>
+                        <h5 class="mt-3">¡Excelente!</h5>
                         <p class="text-muted">No hay clientes con morosidad en este momento</p>
                     </div>
                 <?php else: ?>
@@ -129,7 +141,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <th>Controles</th>
                                     <th>Meses Vencidos</th>
                                     <th>Deuda Total</th>
-                                    <th>Ãšltima Mensualidad</th>
+                                    <th>Última Mensualidad</th>
                                     <th>Estado</th>
                                     <th>Contacto</th>
                                 </tr>
@@ -152,15 +164,29 @@ require_once __DIR__ . '/../layouts/header.php';
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-warning" style="font-size: 14px;">
-                                                <?= $moroso['meses_vencidos'] ?> meses
-                                            </span>
+                                            <?php if ($moroso['meses_vencidos'] > 0): ?>
+                                                <span class="badge bg-warning" style="font-size: 14px;">
+                                                    <?= $moroso['meses_vencidos'] ?> meses
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success" style="font-size: 14px;">
+                                                    Al día
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
-                                            <strong class="text-danger"><?= formatUSD($moroso['deuda_total']) ?></strong>
+                                            <?php if ($moroso['deuda_total'] > 0): ?>
+                                                <strong class="text-danger"><?= formatUSD($moroso['deuda_total']) ?></strong>
+                                            <?php else: ?>
+                                                <strong class="text-success">$0.00</strong>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
-                                            <small><?= date('m/Y', strtotime($moroso['ultima_mensualidad'])) ?></small>
+                                            <?php if ($moroso['ultima_mensualidad']): ?>
+                                                <small><?= date('m/Y', strtotime($moroso['ultima_mensualidad'])) ?></small>
+                                            <?php else: ?>
+                                                <small class="text-muted">-</small>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($moroso['meses_vencidos'] >= MESES_BLOQUEO): ?>
@@ -169,11 +195,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 </span>
                                             <?php elseif ($moroso['meses_vencidos'] >= 3): ?>
                                                 <span class="badge bg-warning">
-                                                    <i class="bi bi-exclamation-triangle"></i> CrÃ­tico
+                                                    <i class="bi bi-exclamation-triangle"></i> Crítico
                                                 </span>
-                                            <?php else: ?>
+                                            <?php elseif ($moroso['meses_vencidos'] > 0): ?>
                                                 <span class="badge bg-warning">
                                                     <i class="bi bi-clock"></i> Vencido
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-circle"></i> Solvente
                                                 </span>
                                             <?php endif; ?>
                                         </td>
@@ -209,5 +239,63 @@ function exportarPDF() {
 </script>
 JS;
 ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let debounceTimer;
+    const searchInput = document.getElementById('inputAdminBusqueda');
+    const suggestionsList = document.getElementById('suggestionsListAdminMens');
+
+    if (searchInput && suggestionsList) {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.trim();
+            clearTimeout(debounceTimer);
+
+            if (searchTerm.length < 2) {
+                suggestionsList.style.display = 'none';
+                return;
+            }
+
+            debounceTimer = setTimeout(async function() {
+                try {
+                    const response = await fetch(`<?= url('operador/buscar-cliente') ?>?q=${encodeURIComponent(searchTerm)}`);
+                    const data = await response.json();
+
+                    if (data.length > 0) {
+                        let html = '';
+                        data.forEach(cliente => {
+                            html += `<a href="#" class="list-group-item list-group-item-action py-2" onclick="selectSuggestionAdminMens('${cliente.nombre_completo.replace(/'/g, "\\'")}')">
+                                        <div class="fw-bold text-primary mb-0">${cliente.nombre_completo}</div>
+                                        <small class="text-muted">${cliente.email || ''} ${cliente.cedula ? '| Cédula: ' + cliente.cedula : ''} ${cliente.apartamento ? '| ' + cliente.apartamento : ''}</small>
+                                    </a>`;
+                        });
+                        suggestionsList.innerHTML = html;
+                        suggestionsList.style.display = 'block';
+                    } else {
+                        suggestionsList.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error autocompletar:', error);
+                    suggestionsList.style.display = 'none';
+                }
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#autocompleteResultsAdminMens') && !e.target.closest('#inputAdminBusqueda')) {
+                suggestionsList.style.display = 'none';
+            }
+        });
+    }
+});
+
+function selectSuggestionAdminMens(nombre) {
+    const input = document.getElementById('inputAdminBusqueda');
+    if (input) {
+        input.value = nombre;
+        document.getElementById('formAdminMensualidades').submit();
+    }
+}
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

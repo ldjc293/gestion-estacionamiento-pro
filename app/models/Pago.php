@@ -85,14 +85,26 @@ class Pago
             $controlesData = Database::fetchOne($sqlControles, [$data['apartamento_usuario_id']]);
             $cantidadControles = $controlesData ? $controlesData['cantidad_controles'] : 0;
 
-            // Calcular montos basados en tarifa actual y mensualidades seleccionadas
-            $cantidadMensualidades = isset($data['mensualidades_ids']) ? count($data['mensualidades_ids']) : 1;
-            $montoCalculadoUSD = $tarifaActual->monto_mensual_usd * $cantidadControles * $cantidadMensualidades;
+            // Calcular montos basados en las mensualidades seleccionadas (sumando sus monto_usd registrados)
+            $montoCalculadoUSD = 0;
+            if (!empty($data['mensualidades_ids']) && is_array($data['mensualidades_ids'])) {
+                $placeholders = implode(',', array_fill(0, count($data['mensualidades_ids']), '?'));
+                $sqlSum = "SELECT SUM(monto_usd) as total FROM mensualidades WHERE id IN ($placeholders)";
+                $sumRow = Database::fetchOne($sqlSum, $data['mensualidades_ids']);
+                if ($sumRow && $sumRow['total'] > 0) {
+                    $montoCalculadoUSD = (float)$sumRow['total'];
+                }
+            }
+
+            if ($montoCalculadoUSD <= 0) {
+                $cantidadMensualidades = isset($data['mensualidades_ids']) ? count($data['mensualidades_ids']) : 1;
+                $montoCalculadoUSD = $tarifaActual->monto_mensual_usd * $cantidadControles * $cantidadMensualidades;
+            }
 
             // Obtener tasa BCV actual
             $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
             $tasaData = Database::fetchOne($sqlTasa);
-            $tasaBCV = $tasaData ? $tasaData['tasa_usd_bs'] : 36.40;
+            $tasaBCV = $tasaData ? (float)$tasaData['tasa_usd_bs'] : 36.40;
             $tasaId = $tasaData ? $tasaData['id'] : null;
 
             $montoCalculadoBS = $montoCalculadoUSD * $tasaBCV;
@@ -325,7 +337,7 @@ class Pago
                 LEFT JOIN pago_mensualidad pm ON pm.pago_id = p.id
                 LEFT JOIN mensualidades m ON m.id = pm.mensualidad_id
                 WHERE p.id = ?
-                GROUP BY p.id";
+                GROUP BY p.id, u.id, a.id, t.id, operador.id, au.id";
 
         $result = Database::fetchOne($sql, [$this->id]);
 

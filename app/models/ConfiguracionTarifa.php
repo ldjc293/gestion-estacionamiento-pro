@@ -69,7 +69,7 @@ class ConfiguracionTarifa
 
             // Desactivar tarifa anterior si existe
             $sqlUpdate = "UPDATE configuracion_tarifas
-                          SET activo = FALSE, fecha_vigencia_fin = CURDATE()
+                          SET activo = FALSE, fecha_vigencia_fin = CURRENT_DATE
                           WHERE activo = TRUE
                           AND fecha_vigencia_inicio < ?";
 
@@ -130,7 +130,7 @@ class ConfiguracionTarifa
     public static function desactivar(int $id): bool
     {
         $sql = "UPDATE configuracion_tarifas
-                SET activo = FALSE, fecha_vigencia_fin = CURDATE()
+                SET activo = FALSE, fecha_vigencia_fin = CURRENT_DATE
                 WHERE id = ?";
 
         $result = Database::execute($sql, [$id]);

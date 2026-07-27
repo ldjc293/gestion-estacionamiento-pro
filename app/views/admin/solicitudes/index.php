@@ -311,28 +311,114 @@ function verDetalles(id) {
 
 function aprobar(id) {
     const solicitud = solicitudesData.find(s => s.id === id);
+    if (!solicitud) return;
 
     // Si es solicitud de registro nuevo usuario, mostrar modal de asignación de controles
-    if (solicitud && solicitud.tipo === 'registro_nuevo_usuario') {
+    if (solicitud.tipo === 'registro_nuevo_usuario') {
         mostrarModalAsignacionControles(id, solicitud);
         return;
     }
 
-    // Para otros tipos de solicitud, proceder normalmente
+    const tiposQueRequierenControl = [
+        'desincorporar_control',
+        'agregar_control',
+        'comprar_control',
+        'reactivar_control',
+        'suspension_control',
+        'desactivacion_control',
+        'reportar_perdido'
+    ];
+
+    if (tiposQueRequierenControl.includes(solicitud.tipo)) {
+        mostrarModalSeleccionarControl(id, solicitud);
+    } else {
+        Swal.fire({
+            title: '¿Aprobar solicitud?',
+            text: "Esta acción procesará la solicitud y aplicará los cambios necesarios.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, aprobar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                procesarAprobacion(id);
+            }
+        });
+    }
+}
+
+function mostrarModalSeleccionarControl(id, solicitud) {
     Swal.fire({
-        title: '¿Aprobar solicitud?',
-        text: "Esta acción procesará la solicitud y aplicará los cambios necesarios.",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#10b981',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Sí, aprobar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            procesarAprobacion(id);
-        }
+        title: 'Cargando controles...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
     });
+
+    const isOperador = '<?= $_SESSION['user_rol'] ?>' === 'operador';
+    const baseUrl = isOperador ? '<?= url('operador/obtener-controles-solicitud') ?>' : '<?= url('admin/obtener-controles-solicitud') ?>';
+
+    fetch(`${baseUrl}?solicitud_id=${id}`)
+        .then(res => res.json())
+        .then(data => {
+            Swal.close();
+            if (!data.success || !data.controles || data.controles.length === 0) {
+                const esDesinc = ['desincorporar_control', 'reportar_perdido', 'suspension_control', 'desactivacion_control'].includes(solicitud.tipo);
+                const msj = esDesinc
+                    ? 'El residente no posee controles asignados activos para procesar esta solicitud.'
+                    : 'No hay controles vacíos disponibles en el sistema para asignar.';
+                Swal.fire('Atención', msj, 'warning');
+                return;
+            }
+
+            const esDesincorporacion = ['desincorporar_control', 'suspension_control', 'desactivacion_control', 'reportar_perdido'].includes(solicitud.tipo);
+            const tituloSelect = esDesincorporacion
+                ? 'Seleccione el número de control a desincorporar / procesar:'
+                : 'Seleccione el número de control disponible a asignar:';
+
+            let optionsHtml = data.controles.map(c => {
+                const selected = c.id == data.control_actual_id ? 'selected' : '';
+                return `<option value="${c.id}" ${selected}>Control #${c.numero_control_completo} (${c.estado.toUpperCase()})</option>`;
+            }).join('');
+
+            const selectHtml = `
+                <div class="text-start">
+                    <p class="mb-2"><strong>${tituloSelect}</strong></p>
+                    <select id="swal_select_control_id" class="form-select mb-3">
+                        ${optionsHtml}
+                    </select>
+                    <label class="form-label small text-muted">Observaciones opcionales:</label>
+                    <textarea id="swal_observaciones" class="form-control form-control-sm" rows="2" placeholder="Notas u observaciones..."></textarea>
+                </div>
+            `;
+
+            Swal.fire({
+                title: 'Selección de Control',
+                html: selectHtml,
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                confirmButtonText: 'Confirmar y Aprobar',
+                cancelButtonText: 'Cancelar',
+                preConfirm: () => {
+                    const ctrlId = document.getElementById('swal_select_control_id').value;
+                    const obs = document.getElementById('swal_observaciones').value;
+                    if (!ctrlId) {
+                        Swal.showValidationMessage('Debe seleccionar un control');
+                        return false;
+                    }
+                    return { control_id: ctrlId, observaciones: obs };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    procesarAprobacion(id, result.value.control_id, result.value.observaciones);
+                }
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            Swal.fire('Error', 'Ocurrió un error al cargar la lista de controles', 'error');
+        });
 }
 
 function mostrarModalAsignacionControles(solicitudId, solicitud) {
@@ -625,7 +711,7 @@ function confirmarAsignacionControles() {
     });
 }
 
-function procesarAprobacion(id) {
+function procesarAprobacion(id, controlId = null, observaciones = '') {
     // Mostrar loading
     Swal.fire({
         title: 'Procesando...',
@@ -638,14 +724,22 @@ function procesarAprobacion(id) {
 
     // Determinar la ruta según el rol del usuario
     const isOperador = '<?= $_SESSION['user_rol'] ?>' === 'operador';
-    const url = isOperador ? '<?= url('operador/process-solicitud') ?>' : '<?= url('admin/aprobar-solicitud') ?>';
+    const url = isOperador ? '<?= url('operador/aprobar-solicitud') ?>' : '<?= url('admin/aprobar-solicitud') ?>';
+
+    let bodyData = `solicitud_id=${id}&accion=aprobar&csrf_token=<?= $_SESSION['csrf_token'] ?>`;
+    if (controlId) {
+        bodyData += `&control_id=${controlId}`;
+    }
+    if (observaciones) {
+        bodyData += `&observaciones=${encodeURIComponent(observaciones)}`;
+    }
 
     fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `solicitud_id=${id}&accion=aprobar&csrf_token=<?= $_SESSION['csrf_token'] ?>`
+        body: bodyData
     })
     .then(response => response.json())
     .then(data => {

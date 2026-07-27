@@ -387,7 +387,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="card-body">
                         <?php
-                        $sql = "SELECT * FROM configuracion_tarifas WHERE activo = 1 ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
+                        $sql = "SELECT * FROM configuracion_tarifas WHERE activo = TRUE ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
                         $config = Database::fetchOne($sql);
                         $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
                         $tasaBCV = Database::fetchOne($sql);
@@ -412,3 +412,4 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
+

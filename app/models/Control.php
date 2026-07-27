@@ -75,8 +75,7 @@ class Control
     public static function getVacios(?string $receptor = null): array
     {
         $sql = "SELECT * FROM controles_estacionamiento
-                WHERE estado = 'vacio'
-                  AND apartamento_usuario_id IS NULL";
+                WHERE (apartamento_usuario_id IS NULL OR estado = 'vacio')";
 
         $params = [];
 
@@ -136,21 +135,32 @@ class Control
      * @param int $aprobadoPor ID del usuario que aprueba
      * @return bool
      */
-    public function asignar(int $apartamentoUsuarioId, int $aprobadoPor): bool
+    public function asignar(int $apartamentoUsuarioId, int $aprobadoPor, string $estado = 'activo'): bool
     {
+        $estadoValido = in_array($estado, ['activo', 'bloqueado', 'suspendido', 'desactivado', 'perdido']) ? $estado : 'activo';
+
         $sql = "UPDATE controles_estacionamiento
                 SET apartamento_usuario_id = ?,
-                    estado = 'activo',
-                    motivo_estado = 'Asignado',
+                    estado = ?,
+                    motivo_estado = 'Asignado a residente',
                     fecha_asignacion = NOW(),
                     fecha_estado = NOW(),
                     aprobado_por = ?
-                WHERE id = ? AND estado = 'vacio'";
+                WHERE id = ?";
 
-        $result = Database::execute($sql, [$apartamentoUsuarioId, $aprobadoPor, $this->id]) > 0;
+        $result = Database::execute($sql, [$apartamentoUsuarioId, $estadoValido, $aprobadoPor, $this->id]) > 0;
 
         if ($result) {
-            writeLog("Control {$this->numero_control_completo} asignado", 'info');
+            // Actualizar cantidad_controles en apartamento_usuario
+            $sqlCount = "SELECT COUNT(*) as total FROM controles_estacionamiento WHERE apartamento_usuario_id = ? AND estado != 'vacio'";
+            $countRow = Database::fetchOne($sqlCount, [$apartamentoUsuarioId]);
+            $nuevaCantidad = $countRow ? (int)$countRow['total'] : 1;
+            Database::execute("UPDATE apartamento_usuario SET cantidad_controles = ? WHERE id = ?", [$nuevaCantidad, $apartamentoUsuarioId]);
+
+            // Recalcular cuota de mensualidades futuras
+            self::recalcularMensualidadesFuturas($apartamentoUsuarioId);
+
+            writeLog("Control {$this->numero_control_completo} asignado a apartamento_usuario ID {$apartamentoUsuarioId} con estado {$estadoValido}", 'info');
         }
 
         return $result;
@@ -165,6 +175,8 @@ class Control
      */
     public function desasignar(string $motivo, int $aprobadoPor): bool
     {
+        $apartamentoUsuarioId = $this->apartamento_usuario_id;
+
         $sql = "UPDATE controles_estacionamiento
                 SET apartamento_usuario_id = NULL,
                     estado = 'vacio',
@@ -177,9 +189,60 @@ class Control
 
         if ($result) {
             writeLog("Control {$this->numero_control_completo} desasignado - Motivo: $motivo", 'info');
+
+            if ($apartamentoUsuarioId) {
+                // 1. Actualizar cantidad de controles asignados en apartamento_usuario
+                $sqlCount = "SELECT COUNT(*) as total FROM controles_estacionamiento WHERE apartamento_usuario_id = ? AND estado != 'vacio'";
+                $countRow = Database::fetchOne($sqlCount, [$apartamentoUsuarioId]);
+                $nuevaCantidad = $countRow ? (int)$countRow['total'] : 0;
+
+                $sqlUpdateAu = "UPDATE apartamento_usuario SET cantidad_controles = ? WHERE id = ?";
+                Database::execute($sqlUpdateAu, [$nuevaCantidad, $apartamentoUsuarioId]);
+
+                // 2. Recalcular mensualidades futuras
+                self::recalcularMensualidadesFuturas($apartamentoUsuarioId);
+            }
         }
 
         return $result;
+    }
+
+    /**
+     * Recalcular cuota mensual para mensualidades FUTURAS (posteriores al mes actual)
+     * Manteniendo intactas las mensualidades pasadas/pendientes.
+     *
+     * @param int $apartamentoUsuarioId
+     */
+    public static function recalcularMensualidadesFuturas(int $apartamentoUsuarioId): void
+    {
+        $sqlCount = "SELECT COUNT(*) as total FROM controles_estacionamiento WHERE apartamento_usuario_id = ? AND estado != 'vacio'";
+        $countRow = Database::fetchOne($sqlCount, [$apartamentoUsuarioId]);
+        $nuevaCantidad = $countRow ? (int)$countRow['total'] : 0;
+
+        $sqlTarifa = "SELECT monto_mensual_usd FROM configuracion_tarifas WHERE activo = TRUE ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
+        $tarifaRow = Database::fetchOne($sqlTarifa);
+        $montoBase = $tarifaRow ? (float)$tarifaRow['monto_mensual_usd'] : 1.00;
+
+        $sqlTasa = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+        $tasaRow = Database::fetchOne($sqlTasa);
+        $tasaBs = $tasaRow ? (float)$tasaRow['tasa_usd_bs'] : 36.50;
+
+        $nuevoMontoUSD = $montoBase * $nuevaCantidad;
+        $nuevoMontoBS = $nuevoMontoUSD * $tasaBs;
+
+        $anual = (int)date('Y');
+        $mesActual = (int)date('n');
+
+        $sqlFuturas = "UPDATE mensualidades
+                       SET cantidad_controles = ?,
+                           monto_usd = ?,
+                           monto_bs = ?
+                       WHERE apartamento_usuario_id = ?
+                         AND estado != 'pagada'
+                         AND (anio > ? OR (anio = ? AND mes > ?))";
+
+        Database::execute($sqlFuturas, [$nuevaCantidad, $nuevoMontoUSD, $nuevoMontoBS, $apartamentoUsuarioId, $anual, $anual, $mesActual]);
+        writeLog("Actualizada cantidad de controles a {$nuevaCantidad} para apartamento_usuario_id {$apartamentoUsuarioId} en mensualidades futuras.", 'info');
     }
 
     /**
@@ -318,7 +381,7 @@ class Control
      *
      * @return array Array agrupado por posición
      */
-    public static function getMapaControles(): array
+    public static function getMapaControles(?string $busqueda = null, ?string $estado = null): array
     {
         $sql = "SELECT c.*,
                        u.nombre_completo as propietario_nombre,
@@ -327,9 +390,26 @@ class Control
                 LEFT JOIN apartamento_usuario au ON au.id = c.apartamento_usuario_id
                 LEFT JOIN usuarios u ON u.id = au.usuario_id
                 LEFT JOIN apartamentos a ON a.id = au.apartamento_id
-                ORDER BY c.posicion_numero, c.receptor";
+                WHERE 1=1";
+        $params = [];
 
-        $controles = Database::fetchAll($sql);
+        if (!empty($busqueda)) {
+            $sql .= " AND (c.numero_control_completo ILIKE ? OR CAST(c.posicion_numero AS TEXT) ILIKE ? OR u.nombre_completo ILIKE ? OR CONCAT(a.bloque, '-', a.numero_apartamento) ILIKE ?)";
+            $busqParam = "%$busqueda%";
+            $params[] = $busqParam;
+            $params[] = $busqParam;
+            $params[] = $busqParam;
+            $params[] = $busqParam;
+        }
+
+        if (!empty($estado)) {
+            $sql .= " AND c.estado = ?";
+            $params[] = $estado;
+        }
+
+        $sql .= " ORDER BY c.posicion_numero, c.receptor";
+
+        $controles = Database::fetchAll($sql, $params);
 
         // Agrupar por posición
         $mapa = [];

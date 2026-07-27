@@ -35,14 +35,19 @@ require_once __DIR__ . '/../layouts/header.php';
         <!-- Filtros -->
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" class="row g-3">
-                    <div class="col-md-4">
+                <form method="GET" class="row g-3" id="formClientesControles">
+                    <div class="col-md-4 position-relative">
                         <label class="form-label">Buscar</label>
                         <input type="text"
                                class="form-control"
+                               id="inputSearchClientesControles"
                                name="busqueda"
                                value="<?= htmlspecialchars($_GET['busqueda'] ?? '') ?>"
-                               placeholder="Nombre, email, cédula o apartamento">
+                               placeholder="Nombre, email, cédula o apartamento"
+                               autocomplete="off">
+                        <div id="autocompleteResultsClientesControles" class="position-relative">
+                            <div id="suggestionsListClientesControles" class="list-group position-absolute w-100 shadow border-0" style="z-index: 1000; max-height: 250px; overflow-y: auto; display: none;"></div>
+                        </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Bloque</label>
@@ -153,11 +158,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <a href="<?= url('operador/controles') ?>"
-                                                   class="btn btn-outline-success"
-                                                   title="Gestionar Controles">
+                                                <button type="button"
+                                                        class="btn btn-outline-success"
+                                                        title="Gestionar Controles"
+                                                        onclick="abrirGestionControles(<?= $cliente['id'] ?>, '<?= htmlspecialchars($cliente['nombre_completo']) ?>', '<?= htmlspecialchars($cliente['apartamento'] ?? '') ?>')">
                                                     <i class="bi bi-controller"></i> Gestionar
-                                                </a>
+                                                </button>
                                                 <a href="<?= url('operador/registrar-pago-presencial?buscar=' . urlencode($cliente['email'])) ?>"
                                                    class="btn btn-primary"
                                                    title="Registrar Pago">
@@ -175,5 +181,201 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 </div>
+
+<!-- Modal para gestión de controles -->
+<div class="modal fade" id="gestionModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-sliders"></i>
+                    Gestión Integral de Usuario - <span id="modalUsuarioNombre"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light" id="modalContent">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function cargarControlesUsuarioModal(usuarioId) {
+    fetch('<?= url('operador/gestionar-controles-usuario-ajax') ?>?id=' + usuarioId)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('modalContent').innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error reloading controls modal:', error);
+            document.getElementById('modalContent').innerHTML = '<div class="alert alert-danger">Error al actualizar la lista de controles</div>';
+        });
+}
+
+function abrirGestionControles(usuarioId, nombreUsuario, apartamento) {
+    document.getElementById('modalUsuarioNombre').textContent = nombreUsuario + (apartamento ? ' (' + apartamento + ')' : '');
+    document.getElementById('modalContent').innerHTML = '<div class="text-center py-4"><span class="spinner-border text-primary" role="status"></span> Cargando...</div>';
+
+    const modalElement = document.getElementById('gestionModal');
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement);
+    }
+    modal.show();
+
+    cargarControlesUsuarioModal(usuarioId);
+}
+
+function removerControlAjax(controlId, controlNumero, usuarioId) {
+    if (confirm('¿Está seguro de que desea remover el control ' + controlNumero + ' del usuario?')) {
+        const motivo = prompt('Motivo de la remoción:');
+        if (motivo && motivo.trim() !== '') {
+            fetch('<?= url('operador/remover-control-usuario') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new URLSearchParams({
+                    'csrf_token': '<?= generateCSRFToken() ?>',
+                    'usuario_id': usuarioId,
+                    'control_id': controlId,
+                    'motivo': motivo.trim()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    cargarControlesUsuarioModal(usuarioId);
+                } else {
+                    alert('Error: ' + (data.message || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error de conexión');
+            });
+        }
+    }
+}
+
+// Delegación de eventos para todos los formularios inyectados dinámicamente
+document.addEventListener('submit', function(e) {
+    if (e.target && (
+        e.target.id === 'formAsignarControl' || 
+        e.target.id === 'formEditarUsuario' || 
+        e.target.id === 'formAsignarApartamento' || 
+        e.target.classList.contains('form-cambiar-estado')
+    )) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const usuarioId = form.querySelector('[name="usuario_id"]').value;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        let originalBtnHtml = '';
+
+        if (submitBtn) {
+            originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
+        }
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Notificar éxito visualmente o simplemente recargar el modal
+                cargarControlesUsuarioModal(usuarioId);
+            } else {
+                alert('Error: ' + (data.message || 'Error desconocido'));
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            }
+            // Intentar recargar el modal como fallback
+            cargarControlesUsuarioModal(usuarioId);
+        });
+    }
+});
+
+// Recargar la página principal únicamente al cerrar el modal
+const reloadPage = function () {
+    location.reload();
+};
+
+document.getElementById('gestionModal').addEventListener('hidden.bs.modal', reloadPage);
+
+// Autocompletado en tiempo real estilo registrar pago presencial
+(function() {
+    let debounceTimer;
+    const searchInput = document.getElementById('inputSearchClientesControles');
+    const suggestionsList = document.getElementById('suggestionsListClientesControles');
+
+    if (searchInput && suggestionsList) {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.trim();
+            clearTimeout(debounceTimer);
+
+            if (searchTerm.length < 2) {
+                suggestionsList.style.display = 'none';
+                return;
+            }
+
+            debounceTimer = setTimeout(async function() {
+                try {
+                    const response = await fetch(`<?= url('operador/buscar-cliente') ?>?q=${encodeURIComponent(searchTerm)}`);
+                    const data = await response.json();
+
+                    if (data.length > 0) {
+                        let html = '';
+                        data.forEach(cliente => {
+                            html += `<a href="#" class="list-group-item list-group-item-action py-2" onclick="selectSuggestionClientesControles('${cliente.nombre_completo.replace(/'/g, "\\'")}')">
+                                        <div class="fw-bold text-primary mb-0">${cliente.nombre_completo}</div>
+                                        <small class="text-muted">${cliente.email || ''} ${cliente.cedula ? '| Cédula: ' + cliente.cedula : ''} ${cliente.apartamento ? '| ' + cliente.apartamento : ''}</small>
+                                    </a>`;
+                        });
+                        suggestionsList.innerHTML = html;
+                        suggestionsList.style.display = 'block';
+                    } else {
+                        suggestionsList.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error autocompletar:', error);
+                    suggestionsList.style.display = 'none';
+                }
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#autocompleteResultsClientesControles') && !e.target.closest('#inputSearchClientesControles')) {
+                suggestionsList.style.display = 'none';
+            }
+        });
+    }
+})();
+
+function selectSuggestionClientesControles(nombre) {
+    const input = document.getElementById('inputSearchClientesControles');
+    if (input) {
+        input.value = nombre;
+        document.getElementById('formClientesControles').submit();
+    }
+}
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

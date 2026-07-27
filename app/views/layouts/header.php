@@ -363,10 +363,33 @@
             border-radius: 6px;
         }
 
+        /* Sidebar Backdrop Overlay for Mobile */
+        .sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            z-index: 999;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .sidebar-backdrop.show {
+            display: block;
+            opacity: 1;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+                z-index: 1000;
             }
 
             .sidebar.show {
@@ -378,11 +401,79 @@
             }
 
             .content-area {
-                padding: 16px;
+                padding: 12px;
             }
 
             .topbar {
-                padding: 12px 16px;
+                padding: 8px 14px;
+                gap: 8px;
+            }
+
+            .topbar-left h5 {
+                font-size: 16px;
+            }
+
+            .topbar-left .breadcrumb {
+                font-size: 11px;
+            }
+
+            .user-info {
+                display: none;
+            }
+
+            .estado-control-select {
+                max-width: 115px !important;
+                font-size: 11px !important;
+                padding-top: 2px !important;
+                padding-bottom: 2px !important;
+                padding-left: 4px !important;
+            }
+
+            .table-responsive {
+                border-radius: 8px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Global Mobile Form, Card & Nav Adjustments for All User Roles */
+            .row {
+                --bs-gutter-x: 0.8rem;
+            }
+
+            .card-body {
+                padding: 14px;
+            }
+
+            .card-header {
+                padding: 12px 14px;
+            }
+
+            .nav-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                border-bottom: 2px solid #e2e8f0;
+            }
+
+            .nav-tabs .nav-link {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .modal-dialog {
+                margin: 0.5rem;
+            }
+
+            .modal-body {
+                padding: 14px;
+            }
+        }
+
+        @media (min-width: 480px) and (max-width: 768px) {
+            .user-info {
+                display: flex;
             }
         }
 
@@ -525,6 +616,6 @@
     </script>
 
     <!-- Confirmaciones y prevención de doble-submit -->
-    <script src="<?= url('public/js/confirm-actions.js') ?>"></script>
+    <script src="<?= url('js/confirm-actions.js') ?>"></script>
 </head>
 <body>

@@ -21,7 +21,7 @@
 </head>
 <body onload="window.print()">
     <div class="header">
-        <h1>Reporte de Morosidad</h1>
+        <h1>Reporte de Mensualidades de Clientes</h1>
         <p>Control de Pagos de Estacionamiento</p>
         <p>Generado el <?= date('d/m/Y H:i') ?></p>
     </div>
@@ -49,13 +49,13 @@
             <tbody>
                 <?php foreach ($morosos as $m): ?>
                     <tr>
-                        <td><?= htmlspecialchars($m['nombre_completo']) ?></td>
-                        <td><?= htmlspecialchars($m['cedula']) ?></td>
-                        <td>Blq <?= $m['torre'] ?> - <?= $m['apartamento'] ?></td>
+                        <td><?= htmlspecialchars($m['nombre_completo'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($m['cedula'] ?? '') ?></td>
+                        <td>Blq <?= htmlspecialchars($m['torre'] ?? '') ?> - <?= htmlspecialchars($m['apartamento'] ?? '') ?></td>
                         <td><?= $m['total_controles'] ?></td>
                         <td><?= $m['meses_vencidos'] ?></td>
                         <td class="text-right text-danger"><?= number_format($m['deuda_total'], 2) ?> USD</td>
-                        <td><?= $m['ultima_mensualidad'] ?></td>
+                        <td><?= $m['ultima_mensualidad'] ? date('m/Y', strtotime($m['ultima_mensualidad'])) : '-' ?></td>
                         <td><?= htmlspecialchars($m['telefono'] ?? '-') ?></td>
                     </tr>
                 <?php endforeach; ?>

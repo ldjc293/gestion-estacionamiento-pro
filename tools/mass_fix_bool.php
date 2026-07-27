@@ -1,5 +1,5 @@
 <?php
-$dir = __DIR__ . '/app';
+$dir = dirname(__DIR__) . '/app';
 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
 
 foreach ($iterator as $file) {

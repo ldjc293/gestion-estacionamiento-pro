@@ -21,6 +21,7 @@ class SolicitudHelper
             'agregar_control' => 'Agregar Control',
             'comprar_control' => 'Comprar Control',
             'solicitud_personalizada' => 'Solicitud Personalizada',
+            'reactivar_control' => 'Reactivar Control',
             'cambio_estado_control' => 'Cambio Estado Control'
         ];
     }
@@ -75,6 +76,11 @@ class SolicitudHelper
                 'label' => 'Solicitud Personalizada',
                 'icon' => 'chat-dots',
                 'color' => 'info'
+            ],
+            'reactivar_control' => [
+                'label' => 'Reactivar Control',
+                'icon' => 'arrow-counterclockwise',
+                'color' => 'success'
             ],
             'cambio_estado_control' => [
                 'label' => 'Cambio Estado Control',

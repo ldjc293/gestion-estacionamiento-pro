@@ -8,6 +8,7 @@ $breadcrumb = [
 
 require_once __DIR__ . '/../../layouts/header.php';
 ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <?php require_once __DIR__ . '/../../layouts/sidebar.php'; ?>
 
@@ -287,8 +288,11 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                     ];
                                                     $colorBadge = $estadoBadge[$control['estado']] ?? 'secondary';
                                                     ?>
-                                                    <span class="badge bg-<?= $colorBadge ?> ms-2 small">
-                                                        <?= ucfirst($control['estado']) ?>
+                                                    <span class="badge bg-<?= $colorBadge ?> ms-2 small"
+                                                          style="cursor: pointer;"
+                                                          title="Haga clic para cambiar estatus"
+                                                          onclick="abrirModalCambiarEstatusControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>', '<?= $control['estado'] ?>')">
+                                                        <?= ucfirst($control['estado']) ?> <i class="bi bi-pencil-square ms-1" style="font-size: 10px;"></i>
                                                     </span>
                                                     <?php if ($control['fecha_asignacion']): ?>
                                                         <br><small class="text-muted">
@@ -296,10 +300,18 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                         </small>
                                                     <?php endif; ?>
                                                 </div>
-                                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                                        onclick="removerControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>')">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                <div class="d-flex gap-1">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                                            title="Cambiar Estatus"
+                                                            onclick="abrirModalCambiarEstatusControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>', '<?= $control['estado'] ?>')">
+                                                        <i class="bi bi-gear"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                                            title="Remover Control"
+                                                            onclick="removerControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
@@ -317,7 +329,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                                             <option value="">Seleccionar control...</option>
                                             <?php foreach ($controlesDisponibles as $control): ?>
                                                 <option value="<?= $control['id'] ?>">
-                                                    <?= htmlspecialchars($control['numero_control_completo']) ?> (Pos <?= $control['posicion_numero'] ?>, Rec <?= $control['receptor'] ?>)
+                                                    <?= htmlspecialchars($control['numero_control_completo']) ?> (Pos <?= $control['posicion_numero'] ?>, Rec <?= $control['receptor'] ?><?= $control['estado'] !== 'vacio' ? ' - ' . ucfirst($control['estado']) : '' ?>)
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -340,7 +352,8 @@ require_once __DIR__ . '/../../layouts/header.php';
 </div>
 
 <?php
-$additionalJS = <<<JS
+ob_start();
+?>
 <script>
 function togglePassword(fieldId) {
     const field = document.getElementById(fieldId);
@@ -358,7 +371,7 @@ function togglePassword(fieldId) {
 }
 
 // Check password match
-document.getElementById('password_confirm').addEventListener('input', function() {
+document.getElementById('password_confirm')?.addEventListener('input', function() {
     const password = document.getElementById('password').value;
     const confirm = this.value;
     const matchText = document.getElementById('passwordMatch');
@@ -387,7 +400,7 @@ if (cedulaNumero) {
 }
 
 // Form validation
-document.getElementById('formEditarUsuario').addEventListener('submit', function(e) {
+document.getElementById('formEditarUsuario')?.addEventListener('submit', function(e) {
     const password = document.getElementById('password').value;
     const confirm = document.getElementById('password_confirm').value;
 
@@ -404,12 +417,32 @@ document.getElementById('formEditarUsuario').addEventListener('submit', function
     setButtonLoading(btn, true);
 });
 
-// Función para remover control
+// Función para remover control con SweetAlert2
 function removerControl(controlId, controlNumero) {
-    if (confirm('¿Está seguro de que desea remover el control ' + controlNumero + ' del usuario?')) {
-        const motivo = prompt('Motivo de la remoción:');
-        if (motivo && motivo.trim() !== '') {
-            // Crear formulario y enviar
+    Swal.fire({
+        title: '¿Remover Control #' + controlNumero + '?',
+        text: 'El control se desvinculará de este residente y pasará a estar Vacío.',
+        icon: 'warning',
+        input: 'text',
+        inputPlaceholder: 'Indique el motivo de la remoción...',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, remover control',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (value) => {
+            if (!value || !value.trim()) {
+                return 'Debe ingresar un motivo para desincorporar el control';
+            }
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Procesando...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = '<?= url('admin/remover-control-usuario') ?>';
@@ -419,7 +452,7 @@ function removerControl(controlId, controlNumero) {
                 'csrf_token': '<?= generateCSRFToken() ?>',
                 'usuario_id': '<?= $usuario->id ?>',
                 'control_id': controlId,
-                'motivo': motivo.trim()
+                'motivo': result.value.trim()
             };
 
             for (const [name, value] of Object.entries(fields)) {
@@ -433,10 +466,80 @@ function removerControl(controlId, controlNumero) {
             document.body.appendChild(form);
             form.submit();
         }
-    }
+    });
+}
+
+// Función para cambiar estatus de un control con SweetAlert2
+function abrirModalCambiarEstatusControl(controlId, controlNumero, estadoActual) {
+    const htmlSelect = `
+        <div class="text-start">
+            <label class="form-label fw-bold small mb-1">Nuevo Estatus:</label>
+            <select id="swal_nuevo_estado" class="form-select form-select-sm mb-3">
+                <option value="activo" ${estadoActual === 'activo' ? 'selected' : ''}>Activo</option>
+                <option value="suspendido" ${estadoActual === 'suspendido' ? 'selected' : ''}>Suspendido</option>
+                <option value="desactivado" ${estadoActual === 'desactivado' ? 'selected' : ''}>Desactivado</option>
+                <option value="perdido" ${estadoActual === 'perdido' ? 'selected' : ''}>Perdido (Reportado)</option>
+                <option value="bloqueado" ${estadoActual === 'bloqueado' ? 'selected' : ''}>Bloqueado</option>
+                <option value="vacio" ${estadoActual === 'vacio' ? 'selected' : ''}>Vacío (Desincorporar)</option>
+            </select>
+            <label class="form-label fw-bold small mb-1">Motivo del Cambio:</label>
+            <input type="text" id="swal_motivo_estado" class="form-control form-control-sm" placeholder="Indique el motivo del cambio de estatus...">
+        </div>
+    `;
+
+    Swal.fire({
+        title: 'Cambiar Estatus Control #' + controlNumero,
+        html: htmlSelect,
+        showCancelButton: true,
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Guardar Estatus',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const estado = document.getElementById('swal_nuevo_estado').value;
+            const motivo = document.getElementById('swal_motivo_estado').value;
+            if (!motivo || !motivo.trim()) {
+                Swal.showValidationMessage('Debe ingresar un motivo para el cambio de estatus');
+                return false;
+            }
+            return { estado: estado, motivo: motivo.trim() };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Actualizando estatus...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+            formData.append('control_id', controlId);
+            formData.append('estado', result.value.estado);
+            formData.append('motivo', result.value.motivo);
+
+            fetch('<?= url('admin/cambiarEstadoControl') ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('¡Éxito!', data.message || 'Estatus actualizado correctamente', 'success')
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Atención', data.message || 'No se pudo cambiar el estatus', 'warning');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                location.reload();
+            });
+        }
+    });
 }
 </script>
-JS;
+<?php
+$additionalJS = ob_get_clean();
+require_once __DIR__ . '/../../layouts/footer.php';
 ?>
-
-<?php require_once __DIR__ . '/../../layouts/footer.php'; ?>

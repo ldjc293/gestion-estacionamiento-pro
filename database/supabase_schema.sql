@@ -151,7 +151,7 @@ CREATE TABLE mensualidades (
     tasa_cambio_id INT NOT NULL REFERENCES tasa_cambio_bcv(id),
 
     -- Estado
-    estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'pagado', 'vencido')),
+    estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'pagado', 'pagada', 'vencido')),
     fecha_vencimiento DATE NOT NULL,
     fecha_generacion TIMESTAMP DEFAULT NOW(),
     bloqueado BOOLEAN DEFAULT FALSE,
@@ -420,3 +420,23 @@ VALUES (36.50, NULL, 'Inicial');
 
 -- Usuarios admin por defecto (opcional)
 -- INSERT INTO usuarios ...
+
+-- ============================================================================
+-- SEGURIDAD: Habilitar Row Level Security (RLS) en todas las tablas
+-- ============================================================================
+ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pago_mensualidad ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mensualidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.configuracion_tarifas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.solicitudes_cambios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.password_reset_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.controles_estacionamiento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.configuracion_cron ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.logs_actividad ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.apartamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasa_cambio_bcv ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pagos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.login_intentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.apartamento_usuario ENABLE ROW LEVEL SECURITY;
+

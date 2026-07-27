@@ -23,7 +23,7 @@ header('X-XSS-Protection: 1; mode=block');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net;");
 
 // Obtener la URL solicitada
-$url = isset($_GET['url']) ? rtrim($_GET['url'], '/') : '';
+$url = isset($_GET['url']) ? trim($_GET['url'], '/') : '';
 $url = filter_var($url, FILTER_SANITIZE_URL);
 $urlParts = explode('/', $url);
 
