@@ -6,14 +6,19 @@
  * a los controladores apropiados según la URL.
  */
 
-// Iniciar sesión si no está iniciada
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+// Detector de proxy reverso HTTPS (Render, Cloudflare, etc.)
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) {
+    $_SERVER['HTTPS'] = 'on';
 }
 
 // Cargar configuración
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
+
+// Iniciar sesión si no está iniciada
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Configuración de seguridad adicional
 header('X-Frame-Options: DENY');
