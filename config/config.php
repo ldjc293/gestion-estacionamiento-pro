@@ -55,8 +55,12 @@ if (($_ENV['APP_DEBUG'] ?? 'false') === 'true') {
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', '1');
     ini_set('session.use_only_cookies', '1');
-    ini_set('session.cookie_secure', '0'); // Cambiar a '1' si usa HTTPS
-    ini_set('session.cookie_samesite', 'Strict');
+    if ((isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')) {
+        ini_set('session.cookie_secure', '1');
+    } else {
+        ini_set('session.cookie_secure', '0');
+    }
+    ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.gc_maxlifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
     ini_set('session.cookie_lifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
 }
@@ -73,8 +77,23 @@ define('APP_NAME', $_ENV['APP_NAME'] ?? 'Sistema de Estacionamiento');
 define('APP_VERSION', '1.0.0');
 define('APP_ENV', $_ENV['APP_ENV'] ?? 'production');
 define('APP_DEBUG', ($_ENV['APP_DEBUG'] ?? 'false') === 'true');
-if (isset($_SERVER['HTTP_HOST'])) {
-    $protocol = (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] === 1 || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'))) ? 'https' : 'http';
+
+$isHttps = (
+    (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) ||
+    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) ||
+    (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on') ||
+    (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+    (!empty($_ENV['APP_URL']) && strpos($_ENV['APP_URL'], 'https://') === 0)
+);
+
+if (!empty($_ENV['APP_URL']) && $_ENV['APP_URL'] !== 'http://localhost/controldepagosestacionamiento') {
+    $envUrl = rtrim($_ENV['APP_URL'], '/');
+    if ($isHttps && strpos($envUrl, 'http://') === 0) {
+        $envUrl = str_replace('http://', 'https://', $envUrl);
+    }
+    define('APP_URL', $envUrl);
+} else if (isset($_SERVER['HTTP_HOST'])) {
+    $protocol = $isHttps ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'];
     $scriptName = $_SERVER['SCRIPT_NAME'];
     $basePath = dirname($scriptName);
@@ -82,7 +101,7 @@ if (isset($_SERVER['HTTP_HOST'])) {
     $basePath = rtrim($basePath, '/');
     define('APP_URL', $protocol . '://' . $host . $basePath);
 } else {
-    define('APP_URL', rtrim($_ENV['APP_URL'] ?? 'http://localhost/controldepagosestacionamiento', '/'));
+    define('APP_URL', 'http://localhost');
 }
 define('APP_KEY', $_ENV['APP_KEY'] ?? '');
 
@@ -294,7 +313,11 @@ define('TIPOS_NOTIFICACION', [
  */
 function url(string $path = ''): string
 {
-    return APP_URL . '/' . ltrim($path, '/');
+    $fullUrl = APP_URL . '/' . ltrim($path, '/');
+    if ((isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')) {
+        $fullUrl = str_replace('http://', 'https://', $fullUrl);
+    }
+    return $fullUrl;
 }
 
 /**
