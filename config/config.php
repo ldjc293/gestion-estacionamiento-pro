@@ -7,19 +7,19 @@
  */
 
 // Cargar autoloader de Composer
-require_once __DIR__ . '/../vendor/autoload.php';
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
 
 // Cargar helpers
 require_once __DIR__ . '/../app/helpers/DateHelper.php';
 
 use Dotenv\Dotenv;
 
-// Cargar variables de entorno
-if (file_exists(__DIR__ . '/../.env')) {
+// Cargar variables de entorno desde .env si existe localmente
+if (file_exists(__DIR__ . '/../.env') && class_exists('Dotenv\Dotenv')) {
     $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
     $dotenv->load();
-} else {
-    die("ERROR: Archivo .env no encontrado. Copie .env.example a .env y configure sus valores.");
 }
 
 // ============================================================================
