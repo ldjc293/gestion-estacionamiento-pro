@@ -64,6 +64,7 @@ class AuthController
 
         // Validar CSRF token
         if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            writeLog("Login fallido: Token CSRF inválido para " . ($email ?? 'desconocido'), 'warning');
             $_SESSION['error'] = 'Token de seguridad inválido';
             redirect('auth/login');
         }

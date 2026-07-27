@@ -58,6 +58,7 @@ if (session_status() === PHP_SESSION_NONE) {
     }
     ini_set('session.cookie_httponly', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.cookie_path', '/');
     ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.gc_maxlifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
     ini_set('session.cookie_lifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
@@ -325,6 +326,9 @@ function url(string $path = ''): string
  */
 function redirect(string $path = ''): void
 {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     header('Location: ' . url($path));
     exit;
 }
