@@ -27,10 +27,19 @@ header('X-XSS-Protection: 1; mode=block');
 // CSP Header para permitir jQuery y Bootstrap
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net;");
 
-// Obtener la URL solicitada
+// Obtener la URL solicitada (Soporte para Apache/Nginx rewrite y servidor php -S)
 $url = isset($_GET['url']) ? trim($_GET['url'], '/') : '';
+if (empty($url) && isset($_SERVER['REQUEST_URI'])) {
+    $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '';
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $baseDir = dirname($scriptName);
+    if ($baseDir !== '/' && $baseDir !== '\\' && $baseDir !== '.') {
+        $requestUri = preg_replace('#^' . preg_quote($baseDir, '#') . '#', '', $requestUri);
+    }
+    $url = trim($requestUri, '/');
+}
 $url = filter_var($url, FILTER_SANITIZE_URL);
-$urlParts = explode('/', $url);
+$urlParts = array_values(array_filter(explode('/', $url)));
 
 // Definir el controlador y la acción por defecto
 $controller = !empty($urlParts[0]) ? $urlParts[0] : 'auth';
