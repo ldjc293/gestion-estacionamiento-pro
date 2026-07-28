@@ -324,7 +324,7 @@ class Mensualidad
     public static function marcarVencidas(): int
     {
         $sql = "UPDATE mensualidades
-                SET estado = 'vencida'
+                SET estado = 'vencido'
                 WHERE estado = 'pendiente'
                   AND fecha_vencimiento < CURRENT_DATE";
 
@@ -885,10 +885,9 @@ class Mensualidad
                 $existe = Database::fetchOne($sqlExiste, [$aptUserId, $anio, $mes]);
 
                 if (!$existe) {
-                    // Fecha vencimiento: día 5 del mes correspondiente o vencida si fue un mes pasado
+                    // Fecha vencimiento: día 5 del mes correspondiente
                     $fechaVencimiento = date('Y-m-05', $cursorTime);
-                    $hoy = date('Y-m-d');
-                    $estado = ($fechaVencimiento < $hoy) ? 'vencida' : 'pendiente';
+                    $estado = 'pendiente';
 
                     $sqlInsert = "INSERT INTO mensualidades (
                                     apartamento_usuario_id, mes, anio, cantidad_controles,
