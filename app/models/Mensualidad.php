@@ -351,7 +351,7 @@ class Mensualidad
                     FROM apartamento_usuario au
                     JOIN mensualidades m ON m.apartamento_usuario_id = au.id
                     JOIN usuarios u ON u.id = au.usuario_id
-                    WHERE m.estado = 'vencida'
+                    WHERE m.estado IN ('vencido', 'vencida')
                       AND au.activo = TRUE
                       AND u.activo = TRUE
                       AND u.exonerado = FALSE
@@ -367,7 +367,7 @@ class Mensualidad
                 $sqlUpdate = "UPDATE mensualidades
                               SET bloqueado = TRUE
                               WHERE apartamento_usuario_id = ?
-                                AND estado = 'vencida'";
+                                AND estado IN ('vencido', 'vencida')";
                 Database::execute($sqlUpdate, [$moroso['id']]);
 
                 // Bloquear controles

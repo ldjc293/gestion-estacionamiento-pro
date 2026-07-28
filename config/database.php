@@ -247,23 +247,23 @@ class Database
      */
     public static function beginTransaction(): void
     {
-        self::getInstance()->beginTransaction();
+        if (!self::getInstance()->inTransaction()) {
+            self::getInstance()->beginTransaction();
+        }
     }
 
-    /**
-     * Confirmar transacción
-     */
     public static function commit(): void
     {
-        self::getInstance()->commit();
+        if (self::getInstance()->inTransaction()) {
+            self::getInstance()->commit();
+        }
     }
 
-    /**
-     * Revertir transacción
-     */
     public static function rollback(): void
     {
-        self::getInstance()->rollBack();
+        if (self::getInstance()->inTransaction()) {
+            self::getInstance()->rollBack();
+        }
     }
 
     /**
