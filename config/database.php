@@ -42,12 +42,18 @@ class Database
             return is_string($val) ? trim($val) : $val;
         };
 
+        $host = $getEnv('DB_HOST', 'aws-0-us-west-2.pooler.supabase.com');
+        $user = $getEnv('DB_USER', 'postgres.feoijalccdmdcpufjuda');
+        if (strpos($host, 'pooler.supabase.com') !== false && strpos($user, '.') === false) {
+            $user = $user . '.feoijalccdmdcpufjuda';
+        }
+
         return [
             'driver'  => $getEnv('DB_CONNECTION', 'pgsql'),
-            'host'    => $getEnv('DB_HOST', 'aws-0-us-west-2.pooler.supabase.com'),
+            'host'    => $host,
             'port'    => $getEnv('DB_PORT', '6543'),
             'dbname'  => $getEnv('DB_NAME', 'postgres'),
-            'user'    => $getEnv('DB_USER', 'postgres.feoijalccdmdcpufjuda'),
+            'user'    => $user,
             'pass'    => $getEnv('DB_PASS', 'Impulso$$29'),
             'charset' => $getEnv('DB_CHARSET', 'utf8'),
         ];
