@@ -885,30 +885,25 @@ class Mensualidad
                 $existe = Database::fetchOne($sqlExiste, [$aptUserId, $anio, $mes]);
 
                 if (!$existe) {
-                    $prefix = defined('RECIBO_PREFIX') ? RECIBO_PREFIX : 'EST-';
-                    $padding = defined('RECIBO_PADDING') ? RECIBO_PADDING : 6;
-                    $randomNum = str_pad(mt_rand(1, 999999), $padding, '0', STR_PAD_LEFT);
-                    $numeroRecibo = $prefix . date('Ym', $cursorTime) . '-' . $randomNum;
-
                     // Fecha vencimiento: día 5 del mes correspondiente o vencida si fue un mes pasado
                     $fechaVencimiento = date('Y-m-05', $cursorTime);
                     $hoy = date('Y-m-d');
                     $estado = ($fechaVencimiento < $hoy) ? 'vencida' : 'pendiente';
 
                     $sqlInsert = "INSERT INTO mensualidades (
-                                    apartamento_usuario_id, numero_recibo, anio, mes, estado,
-                                    monto_usd, monto_bs, tasa_bcv_id, fecha_vencimiento, fecha_generacion
-                                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                                    apartamento_usuario_id, mes, anio, cantidad_controles,
+                                    monto_usd, monto_bs, tasa_cambio_id, estado, fecha_vencimiento
+                                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
                     $params = [
                         $aptUserId,
-                        $numeroRecibo,
-                        $anio,
                         $mes,
-                        $estado,
+                        $anio,
+                        $cantidadControles,
                         $montoUsd,
                         $montoBs,
                         $tasa['id'],
+                        $estado,
                         $fechaVencimiento
                     ];
 
