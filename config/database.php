@@ -44,8 +44,15 @@ class Database
 
         $host = $getEnv('DB_HOST', 'aws-0-us-west-2.pooler.supabase.com');
         $user = $getEnv('DB_USER', 'postgres.feoijalccdmdcpufjuda');
+        $pass = $getEnv('DB_PASS', 'Impulso$$29');
+
         if (strpos($host, 'pooler.supabase.com') !== false && strpos($user, '.') === false) {
             $user = $user . '.feoijalccdmdcpufjuda';
+        }
+
+        // Si Render expandió los signos $$ de la contraseña a vacío o PID
+        if (strpos($pass, 'Impulso') === 0 && strpos($pass, '$$') === false) {
+            $pass = 'Impulso$$29';
         }
 
         return [
@@ -54,7 +61,7 @@ class Database
             'port'    => $getEnv('DB_PORT', '6543'),
             'dbname'  => $getEnv('DB_NAME', 'postgres'),
             'user'    => $user,
-            'pass'    => $getEnv('DB_PASS', 'Impulso$$29'),
+            'pass'    => $pass,
             'charset' => $getEnv('DB_CHARSET', 'utf8'),
         ];
     }
