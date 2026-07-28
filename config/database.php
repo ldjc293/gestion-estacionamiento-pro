@@ -37,13 +37,19 @@ class Database
             ];
         }
 
+        $getEnv = function($key, $default = '') {
+            $val = $_ENV[$key] ?? getenv($key) ?: ($_SERVER[$key] ?? $default);
+            return is_string($val) ? trim($val) : $val;
+        };
+
         return [
-            'host'    => $_ENV['DB_HOST'] ?? 'localhost',
-            'port'    => $_ENV['DB_PORT'] ?? '3306',
-            'dbname'  => $_ENV['DB_NAME'] ?? 'estacionamiento_db',
-            'user'    => $_ENV['DB_USER'] ?? 'root',
-            'pass'    => $_ENV['DB_PASS'] ?? '',
-            'charset' => $_ENV['DB_CHARSET'] ?? 'utf8mb4',
+            'driver'  => $getEnv('DB_CONNECTION', 'pgsql'),
+            'host'    => $getEnv('DB_HOST', 'aws-0-us-west-2.pooler.supabase.com'),
+            'port'    => $getEnv('DB_PORT', '6543'),
+            'dbname'  => $getEnv('DB_NAME', 'postgres'),
+            'user'    => $getEnv('DB_USER', 'postgres.feoijalccdmdcpufjuda'),
+            'pass'    => $getEnv('DB_PASS', 'Impulso$$29'),
+            'charset' => $getEnv('DB_CHARSET', 'utf8'),
         ];
     }
 
@@ -79,7 +85,7 @@ class Database
                 $pass = null;
             } else {
                 // Soporte para MySQL y PostgreSQL
-                $driver = $_ENV['DB_CONNECTION'] ?? 'mysql';
+                $driver = $config['driver'] ?? ($_ENV['DB_CONNECTION'] ?? 'pgsql');
                 
                 if ($driver === 'pgsql') {
                     $dsn = sprintf(
@@ -120,7 +126,7 @@ class Database
                 if (!self::$testMode) {
                     if ($driver === 'pgsql') {
                         self::$instance->exec("SET NAMES 'UTF8'");
-                        $tz = $_ENV['APP_TIMEZONE'] ?? 'America/Caracas';
+                        $tz = $_ENV['APP_TIMEZONE'] ?? getenv('APP_TIMEZONE') ?: 'America/Caracas';
                         self::$instance->exec("SET TIME ZONE '{$tz}'");
                     } else {
                         self::$instance->exec("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
@@ -139,13 +145,7 @@ class Database
 
             } catch (PDOException $e) {
                 error_log("[DB ERROR] No se pudo conectar: " . $e->getMessage());
-
-                // En producción, mostrar mensaje genérico
-                if (($_ENV['APP_ENV'] ?? 'production') === 'production') {
-                    throw new PDOException("Error de conexión a la base de datos");
-                } else {
-                    throw $e;
-                }
+                throw new PDOException("Error de conexión a la base de datos: " . $e->getMessage());
             }
         }
 
