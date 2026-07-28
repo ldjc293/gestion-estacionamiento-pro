@@ -1027,9 +1027,9 @@ class ConsultorController
                     a.bloque as torre,
                     a.numero_apartamento as apartamento,
                     (SELECT COUNT(*) FROM controles_estacionamiento c JOIN apartamento_usuario au2 ON au2.id = c.apartamento_usuario_id WHERE au2.apartamento_id = a.id AND au2.activo = TRUE) as total_controles,
-                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.id = m.apartamento_usuario_id WHERE au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado = 'vencida') as meses_vencidos,
-                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = TRUE AND m2.estado = 'vencida') as deuda_total,
-                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes::text, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = TRUE AND m3.estado = 'vencida') as ultima_mensualidad
+                    (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado IN ('vencido', 'vencida')) as meses_vencidos,
+                    (SELECT COALESCE(SUM(m2.monto_usd), 0) FROM mensualidades m2 JOIN apartamento_usuario au4 ON au4.id = m2.apartamento_usuario_id WHERE au4.apartamento_id = a.id AND au4.activo = TRUE AND m2.estado IN ('vencido', 'vencida')) as deuda_total,
+                    (SELECT MAX(CONCAT(m3.anio, '-', LPAD(m3.mes::text, 2, '0'))) FROM mensualidades m3 JOIN apartamento_usuario au5 ON au5.id = m3.apartamento_usuario_id WHERE au5.apartamento_id = a.id AND au5.activo = TRUE AND m3.estado IN ('vencido', 'vencida')) as ultima_mensualidad
                 FROM apartamentos a
                 JOIN apartamento_usuario au ON au.apartamento_id = a.id AND au.activo = TRUE
                 JOIN usuarios u ON u.id = au.usuario_id
@@ -1044,7 +1044,7 @@ class ConsultorController
 
         // Subquery para morosidad filter
         if ($mesesMin !== null && $mesesMin !== '') {
-            $sql .= " HAVING meses_vencidos >= ?";
+            $sql .= " AND (SELECT COUNT(*) FROM mensualidades m JOIN apartamento_usuario au3 ON au3.apartamento_id = a.id AND au3.activo = TRUE AND m.estado IN ('vencido', 'vencida')) >= ?";
             $params[] = intval($mesesMin);
         }
 

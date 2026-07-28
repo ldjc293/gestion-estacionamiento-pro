@@ -203,9 +203,9 @@ class Mensualidad
                        WHERE pm.mensualidad_id = m.id
                          AND p.estado_comprobante IN ('aprobado', 'no_aplica')
                    )
-                 GROUP BY u.id, u.nombre_completo, u.email
-                 HAVING meses_pendientes >= ?
-                 ORDER BY meses_pendientes DESC";
+                  GROUP BY u.id, u.nombre_completo, u.email
+                  HAVING COUNT(m.id) >= ?
+                  ORDER BY meses_pendientes DESC";
 
         return Database::fetchAll($sql, [$mesesMinimos]);
     }
@@ -356,7 +356,7 @@ class Mensualidad
                       AND u.activo = TRUE
                       AND u.exonerado = FALSE
                     GROUP BY au.id, au.usuario_id
-                    HAVING meses_mora >= ?";
+                    HAVING COUNT(m.id) >= ?";
 
             $morosos = Database::fetchAll($sql, [MESES_BLOQUEO]);
 
