@@ -817,4 +817,131 @@ class Mensualidad
             return 0;
         }
     }
+
+    /**
+     * Cargar deudas históricas / mensualidades anteriores desde un mes/año especificado hasta el mes actual
+     *
+     * @param int $usuarioId ID del usuario
+     * @param int $mesInicio Mes de inicio (1-12)
+     * @param int $anioInicio Año de inicio (ej. 2025)
+     * @return array ['success' => bool, 'message' => string, 'generadas' => int]
+     */
+    public static function cargarDeudaHistorica(int $usuarioId, int $mesInicio, int $anioInicio): array
+    {
+        try {
+            Database::beginTransaction();
+
+            // Obtener apartamento activo del usuario
+            $sql = "SELECT au.id as apartamento_usuario_id, au.cantidad_controles, a.bloque, a.numero_apartamento
+                    FROM apartamento_usuario au
+                    JOIN apartamentos a ON a.id = au.apartamento_id
+                    WHERE au.usuario_id = ? AND au.activo = TRUE
+                    LIMIT 1";
+
+            $apartamentoUsuario = Database::fetchOne($sql, [$usuarioId]);
+
+            if (!$apartamentoUsuario) {
+                throw new Exception("El usuario no tiene un apartamento activo asignado");
+            }
+
+            $aptUserId = (int)$apartamentoUsuario['apartamento_usuario_id'];
+            $cantidadControles = max(1, (int)$apartamentoUsuario['cantidad_controles']);
+
+            // Obtener última tasa BCV
+            $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+            $tasa = Database::fetchOne($sqlTasa);
+
+            if (!$tasa) {
+                throw new Exception("No hay tasa de cambio BCV registrada en el sistema");
+            }
+
+            // Obtener tarifa vigente
+            $sqlTarifa = "SELECT monto_mensual_usd FROM configuracion_tarifas
+                          WHERE activo = TRUE AND fecha_vigencia_inicio <= CURRENT_DATE
+                          ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
+            $tarifa = Database::fetchOne($sqlTarifa);
+            $tarifaUSD = $tarifa ? (float)$tarifa['monto_mensual_usd'] : 1.00;
+
+            $montoUsd = $tarifaUSD * $cantidadControles;
+            $montoBs = round($montoUsd * (float)$tasa['tasa_usd_bs'], 2);
+
+            $fechaInicioTimestamp = strtotime(sprintf('%04d-%02d-01', $anioInicio, $mesInicio));
+            $fechaActualTimestamp = strtotime(date('Y-m-01'));
+
+            if ($fechaInicioTimestamp > $fechaActualTimestamp) {
+                throw new Exception("El mes de inicio no puede ser posterior al mes actual");
+            }
+
+            $mensualidadesGeneradas = 0;
+            $cursorTime = $fechaInicioTimestamp;
+
+            while ($cursorTime <= $fechaActualTimestamp) {
+                $mes = (int)date('n', $cursorTime);
+                $anio = (int)date('Y', $cursorTime);
+
+                // Verificar si ya existe la mensualidad para este mes/año
+                $sqlExiste = "SELECT id FROM mensualidades 
+                              WHERE apartamento_usuario_id = ? AND anio = ? AND mes = ?";
+                $existe = Database::fetchOne($sqlExiste, [$aptUserId, $anio, $mes]);
+
+                if (!$existe) {
+                    $prefix = defined('RECIBO_PREFIX') ? RECIBO_PREFIX : 'EST-';
+                    $padding = defined('RECIBO_PADDING') ? RECIBO_PADDING : 6;
+                    $randomNum = str_pad(mt_rand(1, 999999), $padding, '0', STR_PAD_LEFT);
+                    $numeroRecibo = $prefix . date('Ym', $cursorTime) . '-' . $randomNum;
+
+                    // Fecha vencimiento: día 5 del mes correspondiente o vencida si fue un mes pasado
+                    $fechaVencimiento = date('Y-m-05', $cursorTime);
+                    $hoy = date('Y-m-d');
+                    $estado = ($fechaVencimiento < $hoy) ? 'vencida' : 'pendiente';
+
+                    $sqlInsert = "INSERT INTO mensualidades (
+                                    apartamento_usuario_id, numero_recibo, anio, mes, estado,
+                                    monto_usd, monto_bs, tasa_bcv_id, fecha_vencimiento, fecha_generacion
+                                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+
+                    $params = [
+                        $aptUserId,
+                        $numeroRecibo,
+                        $anio,
+                        $mes,
+                        $estado,
+                        $montoUsd,
+                        $montoBs,
+                        $tasa['id'],
+                        $fechaVencimiento
+                    ];
+
+                    Database::execute($sqlInsert, $params);
+                    $mensualidadesGeneradas++;
+                }
+
+                // Avanzar un mes
+                $cursorTime = strtotime('+1 month', $cursorTime);
+            }
+
+            // Marcar vencidas y verificar bloqueos
+            self::marcarVencidas();
+            self::verificarBloqueos();
+
+            Database::commit();
+
+            writeLog("Cargadas $mensualidadesGeneradas mensualidades históricas para usuario ID: $usuarioId desde $mesInicio/$anioInicio", 'info');
+
+            return [
+                'success' => true,
+                'message' => "Se generaron $mensualidadesGeneradas mensualidades históricas correctamente.",
+                'generadas' => $mensualidadesGeneradas
+            ];
+
+        } catch (Exception $e) {
+            Database::rollback();
+            writeLog("Error al cargar deuda histórica para usuario ID $usuarioId: " . $e->getMessage(), 'error');
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'generadas' => 0
+            ];
+        }
+    }
 }

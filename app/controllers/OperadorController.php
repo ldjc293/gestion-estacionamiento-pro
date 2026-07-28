@@ -2500,5 +2500,55 @@ class OperadorController
 
         require_once __DIR__ . '/../views/shared/historial_gastos.php';
     }
+
+    /**
+     * Cargar deuda histórica para un usuario (Operador)
+     */
+    public function cargarDeudaHistorica(): void
+    {
+        $operador = $this->checkAuth();
+        if (!$operador) return;
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                echo json_encode(['success' => false, 'message' => 'Método no permitido']);
+                exit;
+            }
+            redirect('operador/clientes-controles');
+            return;
+        }
+
+        $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $mesInicio = intval($_POST['mes_inicio'] ?? 0);
+        $anioInicio = intval($_POST['anio_inicio'] ?? 0);
+
+        if ($usuarioId <= 0 || $mesInicio < 1 || $mesInicio > 12 || $anioInicio < 2020 || $anioInicio > intval(date('Y'))) {
+            $msg = 'Parámetros inválidos para cargar la deuda histórica';
+            if ($isAjax) {
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            $_SESSION['error'] = $msg;
+            redirect('operador/clientes-controles');
+            return;
+        }
+
+        $result = Mensualidad::cargarDeudaHistorica($usuarioId, $mesInicio, $anioInicio);
+
+        if ($isAjax) {
+            echo json_encode($result);
+            exit;
+        }
+
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
+        }
+
+        redirect('operador/clientes-controles');
+    }
 }
 

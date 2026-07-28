@@ -164,6 +164,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                                         onclick="abrirGestionControles(<?= $cliente['id'] ?>, '<?= htmlspecialchars($cliente['nombre_completo']) ?>', '<?= htmlspecialchars($cliente['apartamento'] ?? '') ?>')">
                                                     <i class="bi bi-controller"></i> Gestionar
                                                 </button>
+                                                <button type="button"
+                                                        class="btn btn-outline-warning text-dark"
+                                                        title="Cargar Deuda Histórica"
+                                                        onclick="abrirModalDeudaHistoricaOperador(<?= $cliente['id'] ?>, '<?= htmlspecialchars($cliente['nombre_completo'], ENT_QUOTES) ?>')">
+                                                    <i class="bi bi-clock-history"></i> Deuda
+                                                </button>
                                                 <a href="<?= url('operador/registrar-pago-presencial?buscar=' . urlencode($cliente['email'])) ?>"
                                                    class="btn btn-primary"
                                                    title="Registrar Pago">
@@ -375,6 +381,87 @@ function selectSuggestionClientesControles(nombre) {
         input.value = nombre;
         document.getElementById('formClientesControles').submit();
     }
+}
+
+function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
+    const anioActual = new Date().getFullYear();
+    let opcionesAnio = '';
+    for (let a = anioActual; a >= 2020; a--) {
+        opcionesAnio += `<option value="${a}">${a}</option>`;
+    }
+
+    const meses = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    let opcionesMes = '';
+    meses.forEach((m, idx) => {
+        opcionesMes += `<option value="${idx + 1}">${m}</option>`;
+    });
+
+    Swal.fire({
+        title: 'Cargar Deuda Histórica',
+        html: `
+            <div class="text-start mb-3">
+                <p class="small text-muted mb-2">Selecciona el <strong>primer mes que debe</strong> el cliente <strong>${nombreUsuario}</strong>. Se generarán automáticamente todas las mensualidades faltantes desde ese mes hasta la actualidad.</p>
+                <div class="mb-3">
+                    <label class="form-label font-semibold small">Año de inicio de deuda:</label>
+                    <select id="swalAnioInicioOp" class="form-select">${opcionesAnio}</select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label font-semibold small">Mes de inicio de deuda:</label>
+                    <select id="swalMesInicioOp" class="form-select">${opcionesMes}</select>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-check-circle me-1"></i> Generar Deuda',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#f59e0b',
+        preConfirm: () => {
+            const anio = document.getElementById('swalAnioInicioOp').value;
+            const mes = document.getElementById('swalMesInicioOp').value;
+            if (!anio || !mes) {
+                Swal.showValidationMessage('Selecciona año y mes válidos');
+                return false;
+            }
+            return { anio, mes };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Procesando...',
+                text: 'Generando mensualidades históricas',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('usuario_id', usuarioId);
+            formData.append('anio_inicio', result.value.anio);
+            formData.append('mes_inicio', result.value.mes);
+            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+
+            fetch('<?= url("operador/cargar-deuda-historica") ?>', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('¡Éxito!', data.message, 'success').then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', data.message || 'No se pudo cargar la deuda histórica', 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'Ocurrió un error en la solicitud', 'error');
+            });
+        }
+    });
 }
 </script>
 
