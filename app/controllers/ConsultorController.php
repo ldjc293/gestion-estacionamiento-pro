@@ -1739,5 +1739,21 @@ class ConsultorController
 
         redirect('consultor/dashboard');
     }
+
+    /**
+     * Actualizar tasa BCV a petición del consultor
+     */
+    public function actualizarTasaBCV(): void
+    {
+        $consultor = $this->checkAuth();
+        if (!$consultor) return;
+
+        require_once __DIR__ . '/../helpers/BCVHelper.php';
+        $res = BCVHelper::actualizarTasaBCV('Consultor', $consultor->id);
+
+        header('Content-Type: application/json');
+        echo json_encode($res);
+        exit;
+    }
 }
 

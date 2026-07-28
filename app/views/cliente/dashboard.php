@@ -378,19 +378,24 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                 <?php endif; ?>
 
-                <!-- Información de Tarifa -->
+                <!-- Información de Tarifa y Tasa BCV -->
                 <div class="card mt-4">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
-                            <i class="bi bi-info-circle"></i> Información
+                            <i class="bi bi-info-circle"></i> Información y Tasa BCV
                         </h6>
+                        <button type="button" class="btn btn-light btn-sm" id="btnActualizarTasaCliente" title="Actualizar tasa BCV" onclick="actualizarTasaBCVCliente()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
                     </div>
                     <div class="card-body">
                         <?php
                         $sql = "SELECT * FROM configuracion_tarifas WHERE activo = TRUE ORDER BY fecha_vigencia_inicio DESC LIMIT 1";
                         $config = Database::fetchOne($sql);
-                        $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+                        $sql = "SELECT tasa_usd_bs, fecha_registro FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
                         $tasaBCV = Database::fetchOne($sql);
+                        $tasaMonto = floatval($tasaBCV['tasa_usd_bs'] ?? 36.50);
+                        $fechaTasaStr = isset($tasaBCV['fecha_registro']) ? date('d/m/Y h:i A', strtotime($tasaBCV['fecha_registro'])) : 'Reciente';
                         ?>
                         <div class="mb-3">
                             <small class="text-muted">Tarifa Mensual</small>
@@ -398,11 +403,12 @@ require_once __DIR__ . '/../layouts/header.php';
                         </div>
                         <div class="mb-3">
                             <small class="text-muted">Tasa BCV Actual</small>
-                            <div class="fw-bold"><?= number_format($tasaBCV['tasa_usd_bs'] ?? 36.50, 2) ?> Bs/$</div>
+                            <div class="fw-bold text-success fs-5" id="tasaBCVClienteVal"><?= number_format($tasaMonto, 2) ?> Bs/$</div>
+                            <small class="text-muted d-block" style="font-size: 11px;" id="tasaBCVClienteFecha"><i class="bi bi-clock-history me-1"></i><?= $fechaTasaStr ?></small>
                         </div>
                         <div class="alert alert-info mb-0" style="font-size: 13px;">
                             <i class="bi bi-lightbulb"></i>
-                            <strong>Tip:</strong> Puedes pagar en USD o Bs. La conversión se hace con la tasa BCV del día.
+                            <strong>Tip:</strong> Puedes pagar en USD o Bs. La conversión se calcula con la tasa oficial BCV.
                         </div>
                     </div>
                 </div>
@@ -410,6 +416,45 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function actualizarTasaBCVCliente() {
+    const btn = document.getElementById('btnActualizarTasaCliente');
+    if (btn) btn.disabled = true;
+
+    Swal.fire({
+        title: 'Consultando BCV...',
+        text: 'Obteniendo la tasa de cambio oficial en tiempo real',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    fetch('<?= url("cliente/actualizar-tasa-bcv") ?>', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (btn) btn.disabled = false;
+        if (data.success) {
+            document.getElementById('tasaBCVClienteVal').textContent = data.tasa_formateada + ' Bs/$';
+            document.getElementById('tasaBCVClienteFecha').innerHTML = '<i class="bi bi-clock-history me-1"></i>' + data.fecha_formateada;
+            Swal.fire('¡Tasa Actualizada!', data.message, 'success').then(() => {
+                window.location.reload();
+            });
+        } else {
+            Swal.fire('Atención', data.message || 'No se pudo obtener la tasa del BCV', 'warning');
+        }
+    })
+    .catch(err => {
+        if (btn) btn.disabled = false;
+        Swal.fire('Error', 'Ocurrió un error al consultar el servidor', 'error');
+    });
+}
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 

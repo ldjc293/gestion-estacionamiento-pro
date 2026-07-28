@@ -1273,80 +1273,10 @@ class OperadorController
 
         header('Content-Type: application/json');
 
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            echo json_encode(['success' => false, 'message' => 'Método no permitido']);
-            exit;
-        }
+        require_once __DIR__ . '/../helpers/BCVHelper.php';
+        $res = BCVHelper::actualizarTasaBCV('Operador', $usuario->id);
 
-        // Validar CSRF - Leer del body JSON si es una petición JSON
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
-        $receivedToken = $data['csrf_token'] ?? $_POST['csrf_token'] ?? '';
-        $sessionToken = $_SESSION['csrf_token'] ?? 'no_session_token';
-
-        if (!ValidationHelper::validateCSRFToken($receivedToken)) {
-            error_log("CSRF validation failed. Received: '$receivedToken', Session: '$sessionToken'");
-            echo json_encode(['success' => false, 'message' => 'Token de seguridad inválido']);
-            exit;
-        }
-
-        try {
-            // Obtener la tasa actualizada desde el sitio web del BCV
-            $tasaNueva = $this->obtenerTasaDesdeBCV();
-
-            // Si falla el BCV, intentar fuente alternativa
-            if ($tasaNueva === null) {
-                writeLog("BCV directo no disponible, intentando fuente alternativa", 'warning');
-                $tasaNueva = $this->obtenerTasaAlternativa();
-            }
-
-            // Si todo falla, usar simulación como último recurso
-            if ($tasaNueva === null) {
-                writeLog("APIs no disponibles, usando simulación", 'warning');
-                $tasaActual = $this->getTasaBCVActual();
-                $tasaNueva = $tasaActual + (mt_rand(-50, 50) / 100); // Simular cambio pequeño
-            }
-
-            // Validar que la tasa sea mayor a 0
-            if ($tasaNueva <= 0) {
-                writeLog("Tasa obtenida inválida (menor o igual a cero): $tasaNueva", 'error');
-                echo json_encode(['success' => false, 'message' => "Tasa obtenida inválida: $tasaNueva Bs"]);
-                exit;
-            }
-
-            // Obtener tasa anterior para calcular variación
-            $tasaAnterior = $this->getTasaBCVActual();
-
-            // Insertar nueva tasa en la base de datos
-            $sql = "INSERT INTO tasa_cambio_bcv (tasa_usd_bs, registrado_por, fecha_registro, fuente)
-                    VALUES (?, ?, NOW(), ?)";
-
-            $fuente = $tasaNueva !== null && $tasaNueva !== $tasaAnterior ? 'BCV_WEB' : 'SIMULADO';
-            $result = Database::execute($sql, [$tasaNueva, $usuario->id, $fuente]);
-
-            if ($result) {
-                $variacion = $tasaAnterior ? (($tasaNueva - $tasaAnterior) / $tasaAnterior) * 100 : 0;
-                $signo = $variacion >= 0 ? '+' : '';
-
-                writeLog("Tasa BCV actualizada por operador {$usuario->email}: $tasaAnterior -> $tasaNueva (Variación: {$signo}" . number_format($variacion, 2) . "%)", 'info');
-
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'Tasa BCV actualizada correctamente (Variación: ' . $signo . number_format($variacion, 2) . '%)',
-                    'nueva_tasa' => $tasaNueva,
-                    'tasa_anterior' => $tasaAnterior,
-                    'variacion' => round($variacion, 2),
-                    'fuente' => $fuente,
-                    'fecha' => date('d/m/Y H:i')
-                ]);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Error al guardar la nueva tasa']);
-            }
-        } catch (Exception $e) {
-            writeLog("Error al actualizar tasa BCV: " . $e->getMessage(), 'error');
-            echo json_encode(['success' => false, 'message' => 'Error interno del servidor']);
-        }
-
+        echo json_encode($res);
         exit;
     }
 

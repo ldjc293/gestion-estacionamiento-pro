@@ -960,6 +960,22 @@ class ClienteController
     }
 
     /**
+     * Actualizar tasa BCV en vivo a petición del cliente
+     */
+    public function actualizarTasaBCV(): void
+    {
+        $cliente = $this->checkAuth();
+        if (!$cliente) return;
+
+        require_once __DIR__ . '/../helpers/BCVHelper.php';
+        $res = BCVHelper::actualizarTasaBCV('Cliente Manuel', $cliente->id);
+
+        header('Content-Type: application/json');
+        echo json_encode($res);
+        exit;
+    }
+
+    /**
      * Obtener tasa BCV actual
      */
     private function getTasaBCVActual(): float

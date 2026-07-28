@@ -2113,62 +2113,20 @@ class AdminController
             return;
         }
 
-        // Consultar tasa automáticamente desde BCV
-        $tasa = $this->consultarTasaBCV();
+        require_once __DIR__ . '/../helpers/BCVHelper.php';
+        $result = BCVHelper::actualizarTasaBCV('Admin Automático', $admin->id);
 
-        if ($tasa === null || $tasa <= 0) {
-            $errorMsg = 'No se pudo obtener la tasa del BCV. Verifique su conexión a internet o intente más tarde.';
-            writeLog("Error al consultar tasa BCV automáticamente por admin {$admin->email}", 'error');
-
-            if ($isAjax) {
-                echo json_encode(['success' => false, 'message' => $errorMsg]);
-                exit;
-            }
-            $_SESSION['error'] = $errorMsg;
-            redirect('admin/configuracion');
-            return;
+        if ($isAjax) {
+            echo json_encode($result);
+            exit;
         }
 
-        try {
-            $sql = "INSERT INTO tasa_cambio_bcv (tasa_usd_bs, fecha_registro, registrado_por, fuente)
-                    VALUES (?, NOW(), ?, 'BCV Automático')";
-
-            Database::execute($sql, [$tasa, $admin->id]);
-
-            $successMsg = "Tasa BCV actualizada correctamente a " . number_format($tasa, 2, '.', '') . " Bs/USD";
-            writeLog("Tasa BCV actualizada automáticamente a $tasa por admin {$admin->email}", 'info');
-
-            // Obtener fecha de registro
-            $sqlFecha = "SELECT TO_CHAR(fecha_registro, 'DD/MM/YYYY HH24:MI') as fecha_formateada
-                         FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
-            $resultado = Database::fetchOne($sqlFecha);
-            $fechaActualizacion = $resultado['fecha_formateada'] ?? date('d/m/Y H:i');
-
-            if ($isAjax) {
-                echo json_encode([
-                    'success' => true,
-                    'message' => $successMsg,
-                    'tasa' => number_format($tasa, 2, '.', ''),
-                    'fecha' => $fechaActualizacion,
-                    'fuente' => 'BCV Automático'
-                ]);
-                exit;
-            }
-
-            $_SESSION['success'] = $successMsg;
-            redirect('admin/configuracion');
-
-        } catch (Exception $e) {
-            $errorMsg = 'Error al guardar la tasa en la base de datos: ' . $e->getMessage();
-            writeLog("Error al guardar tasa BCV: " . $e->getMessage(), 'error');
-
-            if ($isAjax) {
-                echo json_encode(['success' => false, 'message' => $errorMsg]);
-                exit;
-            }
-            $_SESSION['error'] = $errorMsg;
-            redirect('admin/configuracion');
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
         }
+        redirect('admin/configuracion');
     }
 
     /**

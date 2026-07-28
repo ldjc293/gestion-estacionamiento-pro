@@ -15,6 +15,10 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTT
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 
+// Verificación y actualización automática diaria de Tasa BCV
+require_once __DIR__ . '/../app/helpers/BCVHelper.php';
+BCVHelper::verificarYActualizarDiario();
+
 // Iniciar sesión si no está iniciada
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
