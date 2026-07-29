@@ -1156,6 +1156,58 @@ class AdminController
     }
 
     /**
+     * Revertir / Eliminar deuda histórica sin pagos aprobados para un usuario
+     */
+    public function revertirDeudaHistorica(): void
+    {
+        $admin = $this->checkAuth();
+        if (!$admin) return;
+
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($isAjax) {
+                echo json_encode(['success' => false, 'message' => 'Método no permitido']);
+                exit;
+            }
+            redirect('admin/usuarios');
+            return;
+        }
+
+        $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $mesInicio = intval($_POST['mes_inicio'] ?? 0);
+        $anioInicio = intval($_POST['anio_inicio'] ?? 0);
+        $mesFin = !empty($_POST['mes_fin']) ? intval($_POST['mes_fin']) : null;
+        $anioFin = !empty($_POST['anio_fin']) ? intval($_POST['anio_fin']) : null;
+
+        if ($usuarioId <= 0 || $mesInicio < 1 || $mesInicio > 12 || $anioInicio < 2020) {
+            $msg = 'Parámetros inválidos para revertir la deuda histórica';
+            if ($isAjax) {
+                echo json_encode(['success' => false, 'message' => $msg]);
+                exit;
+            }
+            $_SESSION['error'] = $msg;
+            redirect('admin/editar-usuario?id=' . $usuarioId);
+            return;
+        }
+
+        $result = Mensualidad::revertirDeudaHistorica($usuarioId, $mesInicio, $anioInicio, $mesFin, $anioFin);
+
+        if ($isAjax) {
+            echo json_encode($result);
+            exit;
+        }
+
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
+        }
+
+        redirect('admin/editar-usuario?id=' . $usuarioId);
+    }
+
+    /**
      * Asignar control
      */
     public function asignarControl(): void

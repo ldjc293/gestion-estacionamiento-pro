@@ -400,66 +400,155 @@ function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
     });
 
     Swal.fire({
-        title: 'Cargar Deuda Histórica',
+        title: 'Gestión de Deuda Histórica',
         html: `
             <div class="text-start mb-3">
-                <p class="small text-muted mb-2">Selecciona el <strong>primer mes que debe</strong> el cliente <strong>${nombreUsuario}</strong>. Se generarán automáticamente todas las mensualidades faltantes desde ese mes hasta la actualidad.</p>
-                <div class="mb-3">
-                    <label class="form-label font-semibold small">Año de inicio de deuda:</label>
-                    <select id="swalAnioInicioOp" class="form-select">${opcionesAnio}</select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label font-semibold small">Mes de inicio de deuda:</label>
-                    <select id="swalMesInicioOp" class="form-select">${opcionesMes}</select>
+                <ul class="nav nav-pills nav-justified mb-3" id="deudaTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active small py-1" id="tab-cargar-tab" data-bs-toggle="pill" data-bs-target="#tab-cargar" type="button" role="tab">Cargar Deuda</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link small py-1 text-danger" id="tab-revertir-tab" data-bs-toggle="pill" data-bs-target="#tab-revertir" type="button" role="tab">Revertir Errónea</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="deudaTabsContent">
+                    <!-- Tab Cargar -->
+                    <div class="tab-pane fade show active" id="tab-cargar" role="tabpanel">
+                        <p class="small text-muted mb-2">Selecciona el <strong>primer mes que debe</strong> el cliente <strong>${nombreUsuario}</strong>.</p>
+                        <div class="mb-2">
+                            <label class="form-label font-semibold small mb-1">Año de inicio:</label>
+                            <select id="swalAnioInicioOp" class="form-select form-select-sm">${opcionesAnio}</select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label font-semibold small mb-1">Mes de inicio:</label>
+                            <select id="swalMesInicioOp" class="form-select form-select-sm">${opcionesMes}</select>
+                        </div>
+                    </div>
+                    <!-- Tab Revertir -->
+                    <div class="tab-pane fade" id="tab-revertir" role="tabpanel">
+                        <div class="alert alert-warning p-2 small mb-2">
+                            <i class="bi bi-shield-exclamation me-1"></i>
+                            Elimina mensualidades no pagadas en caso de error. Las mensualidades pagadas se conservarán intactas.
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6 mb-2">
+                                <label class="form-label font-semibold small mb-1">Año Inicio:</label>
+                                <select id="swalRevAnioInicioOp" class="form-select form-select-sm">${opcionesAnio}</select>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label font-semibold small mb-1">Mes Inicio:</label>
+                                <select id="swalRevMesInicioOp" class="form-select form-select-sm">${opcionesMes}</select>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label font-semibold small mb-1">Año Fin (opcional):</label>
+                                <select id="swalRevAnioFinOp" class="form-select form-select-sm"><option value="">Hasta la fecha</option>${opcionesAnio}</select>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <label class="form-label font-semibold small mb-1">Mes Fin (opcional):</label>
+                                <select id="swalRevMesFinOp" class="form-select form-select-sm"><option value="">Hasta la fecha</option>${opcionesMes}</select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `,
         showCancelButton: true,
-        confirmButtonText: '<i class="bi bi-check-circle me-1"></i> Generar Deuda',
+        confirmButtonText: '<i class="bi bi-check-circle me-1"></i> Procesar',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#f59e0b',
+        confirmButtonColor: '#2563eb',
         preConfirm: () => {
-            const anio = document.getElementById('swalAnioInicioOp').value;
-            const mes = document.getElementById('swalMesInicioOp').value;
-            if (!anio || !mes) {
-                Swal.showValidationMessage('Selecciona año y mes válidos');
-                return false;
+            const isRevertir = document.getElementById('tab-revertir-tab').classList.contains('active');
+            if (isRevertir) {
+                const anioInicio = document.getElementById('swalRevAnioInicioOp').value;
+                const mesInicio = document.getElementById('swalRevMesInicioOp').value;
+                const anioFin = document.getElementById('swalRevAnioFinOp').value;
+                const mesFin = document.getElementById('swalRevMesFinOp').value;
+                if (!anioInicio || !mesInicio) {
+                    Swal.showValidationMessage('Selecciona año y mes de inicio válidos');
+                    return false;
+                }
+                return { accion: 'revertir', anioInicio, mesInicio, anioFin, mesFin };
+            } else {
+                const anio = document.getElementById('swalAnioInicioOp').value;
+                const mes = document.getElementById('swalMesInicioOp').value;
+                if (!anio || !mes) {
+                    Swal.showValidationMessage('Selecciona año y mes válidos');
+                    return false;
+                }
+                return { accion: 'cargar', anio, mes };
             }
-            return { anio, mes };
         }
     }).then((result) => {
         if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Procesando...',
-                text: 'Generando mensualidades históricas',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
+            const val = result.value;
+            if (val.accion === 'revertir') {
+                Swal.fire({
+                    title: 'Eliminando mensualidades erróneas...',
+                    text: 'Procesando reversión de deuda',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
 
-            const formData = new FormData();
-            formData.append('usuario_id', usuarioId);
-            formData.append('anio_inicio', result.value.anio);
-            formData.append('mes_inicio', result.value.mes);
-            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+                const formData = new FormData();
+                formData.append('usuario_id', usuarioId);
+                formData.append('anio_inicio', val.anioInicio);
+                formData.append('mes_inicio', val.mesInicio);
+                if (val.anioFin) formData.append('anio_fin', val.anioFin);
+                if (val.mesFin) formData.append('mes_fin', val.mesFin);
+                formData.append('csrf_token', '<?= generateCSRFToken() ?>');
 
-            fetch('<?= url("operador/cargar-deuda-historica") ?>', {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire('¡Éxito!', data.message, 'success').then(() => {
-                        window.location.reload();
-                    });
-                } else {
-                    Swal.fire('Error', data.message || 'No se pudo cargar la deuda histórica', 'error');
-                }
-            })
-            .catch(err => {
-                Swal.fire('Error', 'Ocurrió un error en la solicitud', 'error');
-            });
+                fetch('<?= url("operador/revertir-deuda-historica") ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire('¡Proceso Completado!', data.message, 'success').then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', data.message || 'No se pudo revertir la deuda', 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', 'Ocurrió un error en la solicitud', 'error');
+                });
+            } else {
+                Swal.fire({
+                    title: 'Procesando...',
+                    text: 'Generando mensualidades históricas',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const formData = new FormData();
+                formData.append('usuario_id', usuarioId);
+                formData.append('anio_inicio', val.anio);
+                formData.append('mes_inicio', val.mes);
+                formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+
+                fetch('<?= url("operador/cargar-deuda-historica") ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire('¡Éxito!', data.message, 'success').then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', data.message || 'No se pudo cargar la deuda histórica', 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', 'Ocurrió un error en la solicitud', 'error');
+                });
+            }
         }
     });
 }

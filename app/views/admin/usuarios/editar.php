@@ -259,7 +259,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                         </div>
                     </div>
 
-                    <!-- Cargar Deuda Histórica -->
+                    <!-- Cargar / Revertir Deuda Histórica -->
                     <div class="card mb-4 border-warning">
                         <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
                             <h6 class="mb-0 text-dark">
@@ -268,11 +268,16 @@ require_once __DIR__ . '/../../layouts/header.php';
                         </div>
                         <div class="card-body">
                             <p class="small text-muted mb-3">
-                                Registra mensualidades no canceladas anteriores a la fecha de ingreso del residente para reflejar su deuda acumulada real.
+                                Gestiona o corrige mensualidades no canceladas para reflejar la deuda acumulada real del residente.
                             </p>
-                            <button type="button" class="btn btn-warning btn-sm w-100 fw-semibold text-dark" onclick="abrirModalDeudaHistorica(<?= $usuario->id ?>, '<?= htmlspecialchars($usuario->nombre_completo, ENT_QUOTES) ?>')">
-                                <i class="bi bi-calendar-plus me-1"></i> Cargar Mensualidades Anteriores
-                            </button>
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-warning btn-sm fw-semibold text-dark" onclick="abrirModalDeudaHistorica(<?= $usuario->id ?>, '<?= htmlspecialchars($usuario->nombre_completo, ENT_QUOTES) ?>')">
+                                    <i class="bi bi-calendar-plus me-1"></i> Cargar Deuda Histórica
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm fw-semibold" onclick="abrirModalRevertirDeuda(<?= $usuario->id ?>, '<?= htmlspecialchars($usuario->nombre_completo, ENT_QUOTES) ?>')">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Revertir / Limpiar Deuda Errónea
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -628,6 +633,104 @@ function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
                     });
                 } else {
                     Swal.fire('Error', data.message || 'No se pudo cargar la deuda histórica', 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'Ocurrió un error en la solicitud', 'error');
+            });
+        }
+    });
+}
+
+function abrirModalRevertirDeuda(usuarioId, nombreUsuario) {
+    const anioActual = new Date().getFullYear();
+    let opcionesAnio = '';
+    for (let a = anioActual; a >= 2020; a--) {
+        opcionesAnio += `<option value="${a}">${a}</option>`;
+    }
+
+    const meses = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    let opcionesMes = '';
+    meses.forEach((m, idx) => {
+        opcionesMes += `<option value="${idx + 1}">${m}</option>`;
+    });
+
+    Swal.fire({
+        title: 'Revertir / Limpiar Deuda Errónea',
+        html: `
+            <div class="text-start mb-3">
+                <div class="alert alert-warning p-2 small mb-3">
+                    <i class="bi bi-shield-exclamation me-1"></i>
+                    Esta acción eliminará las mensualidades no pagadas de <strong>${nombreUsuario}</strong> en el rango indicado. Si existen mensualidades con pagos aprobados, se conservarán intactas.
+                </div>
+                <div class="row g-2">
+                    <div class="col-6 mb-2">
+                        <label class="form-label font-semibold small">Año Inicio:</label>
+                        <select id="swalRevAnioInicio" class="form-select form-select-sm">${opcionesAnio}</select>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label font-semibold small">Mes Inicio:</label>
+                        <select id="swalRevMesInicio" class="form-select form-select-sm">${opcionesMes}</select>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label font-semibold small">Año Fin (opcional):</label>
+                        <select id="swalRevAnioFin" class="form-select form-select-sm"><option value="">Hasta la fecha</option>${opcionesAnio}</select>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <label class="form-label font-semibold small">Mes Fin (opcional):</label>
+                        <select id="swalRevMesFin" class="form-select form-select-sm"><option value="">Hasta la fecha</option>${opcionesMes}</select>
+                    </div>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-trash me-1"></i> Revertir Deuda',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ef4444',
+        preConfirm: () => {
+            const anioInicio = document.getElementById('swalRevAnioInicio').value;
+            const mesInicio = document.getElementById('swalRevMesInicio').value;
+            const anioFin = document.getElementById('swalRevAnioFin').value;
+            const mesFin = document.getElementById('swalRevMesFin').value;
+            if (!anioInicio || !mesInicio) {
+                Swal.showValidationMessage('Selecciona año y mes de inicio válidos');
+                return false;
+            }
+            return { anioInicio, mesInicio, anioFin, mesFin };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Eliminando mensualidades erróneas...',
+                text: 'Procesando reversión de deuda',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const formData = new FormData();
+            formData.append('usuario_id', usuarioId);
+            formData.append('anio_inicio', result.value.anioInicio);
+            formData.append('mes_inicio', result.value.mesInicio);
+            if (result.value.anioFin) formData.append('anio_fin', result.value.anioFin);
+            if (result.value.mesFin) formData.append('mes_fin', result.value.mesFin);
+            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+
+            fetch('<?= url("admin/revertir-deuda-historica") ?>', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('¡Proceso Completado!', data.message, 'success').then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', data.message || 'No se pudo revertir la deuda', 'error');
                 }
             })
             .catch(err => {

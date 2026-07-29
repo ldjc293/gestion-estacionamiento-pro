@@ -938,4 +938,131 @@ class Mensualidad
             ];
         }
     }
+
+    /**
+     * Revertir / Eliminar mensualidades históricas sin pagos aprobados para un usuario
+     */
+    public static function revertirDeudaHistorica(int $usuarioId, int $mesInicio, int $anioInicio, ?int $mesFin = null, ?int $anioFin = null): array
+    {
+        try {
+            Database::beginTransaction();
+
+            // Buscar apartamento asignado activo
+            $sqlApt = "SELECT au.id as apartamento_usuario_id 
+                       FROM apartamento_usuario au
+                       WHERE au.usuario_id = ? AND au.activo = TRUE 
+                       LIMIT 1";
+            $apartamentoUsuario = Database::fetchOne($sqlApt, [$usuarioId]);
+
+            if (!$apartamentoUsuario) {
+                throw new Exception("El usuario no tiene un apartamento asignado activo");
+            }
+
+            $aptUserId = (int)$apartamentoUsuario['apartamento_usuario_id'];
+
+            $fechaInicioTimestamp = strtotime(sprintf('%04d-%02d-01', $anioInicio, $mesInicio));
+            
+            if ($mesFin && $anioFin) {
+                $fechaFinTimestamp = strtotime(sprintf('%04d-%02d-01', $anioFin, $mesFin));
+            } else {
+                $fechaFinTimestamp = strtotime(date('Y-m-01'));
+            }
+
+            if ($fechaInicioTimestamp > $fechaFinTimestamp) {
+                throw new Exception("El mes de inicio no puede ser posterior al mes de fin");
+            }
+
+            $mensualidadesEliminadas = 0;
+            $mensualidadesProtegidas = 0;
+            $cursorTime = $fechaInicioTimestamp;
+
+            while ($cursorTime <= $fechaFinTimestamp) {
+                $mes = (int)date('n', $cursorTime);
+                $anio = (int)date('Y', $cursorTime);
+
+                // Buscar mensualidad
+                $sqlBuscar = "SELECT m.id, m.estado FROM mensualidades m
+                              WHERE m.apartamento_usuario_id = ? AND m.anio = ? AND m.mes = ?";
+                $mensualidad = Database::fetchOne($sqlBuscar, [$aptUserId, $anio, $mes]);
+
+                if ($mensualidad) {
+                    $mId = (int)$mensualidad['id'];
+
+                    // Verificar si tiene pagos aprobados o si está pagada
+                    $sqlPago = "SELECT 1 FROM pago_mensualidad pm
+                                JOIN pagos p ON p.id = pm.pago_id
+                                WHERE pm.mensualidad_id = ?
+                                  AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                                LIMIT 1";
+                    $tienePagoAprobado = Database::fetchOne($sqlPago, [$mId]);
+
+                    if ($mensualidad['estado'] === 'pagada' || $mensualidad['estado'] === 'pagado' || $tienePagoAprobado) {
+                        $mensualidadesProtegidas++;
+                    } else {
+                        // Eliminar referencias pendientes en pago_mensualidad
+                        Database::execute("DELETE FROM pago_mensualidad WHERE mensualidad_id = ?", [$mId]);
+                        // Eliminar mensualidad
+                        Database::execute("DELETE FROM mensualidades WHERE id = ?", [$mId]);
+                        $mensualidadesEliminadas++;
+                    }
+                }
+
+                $cursorTime = strtotime('+1 month', $cursorTime);
+            }
+
+            // Recalcular morosidad y desbloquear si corresponde
+            self::recalcularMorosidadYDesbloquear($aptUserId);
+
+            Database::commit();
+
+            writeLog("Revertidas $mensualidadesEliminadas mensualidades para usuario ID: $usuarioId desde $mesInicio/$anioInicio (Protegidas: $mensualidadesProtegidas)", 'info');
+
+            $msg = "Se eliminaron $mensualidadesEliminadas mensualidades no pagadas.";
+            if ($mensualidadesProtegidas > 0) {
+                $msg .= " Se conservaron $mensualidadesProtegidas mensualidades por contar con pagos registrados.";
+            }
+
+            return [
+                'success' => true,
+                'message' => $msg,
+                'eliminadas' => $mensualidadesEliminadas,
+                'protegidas' => $mensualidadesProtegidas
+            ];
+
+        } catch (Exception $e) {
+            Database::rollback();
+            writeLog("Error al revertir deuda histórica para usuario ID $usuarioId: " . $e->getMessage(), 'error');
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'eliminadas' => 0
+            ];
+        }
+    }
+
+    /**
+     * Recalcular la morosidad de un usuario y reactivar sus controles si ya no cumple la regla de bloqueo
+     */
+    public static function recalcularMorosidadYDesbloquear(int $aptUserId): void
+    {
+        $sqlConteo = "SELECT COUNT(id) as total_vencidas
+                      FROM mensualidades
+                      WHERE apartamento_usuario_id = ?
+                        AND estado IN ('vencido', 'vencida')";
+        $res = Database::fetchOne($sqlConteo, [$aptUserId]);
+        $totalVencidas = (int)($res['total_vencidas'] ?? 0);
+
+        if ($totalVencidas < MESES_BLOQUEO) {
+            Database::execute("UPDATE mensualidades SET bloqueado = FALSE WHERE apartamento_usuario_id = ?", [$aptUserId]);
+
+            $sqlReactivar = "UPDATE controles_estacionamiento
+                             SET estado = 'activo',
+                                 motivo_estado = NULL,
+                                 fecha_estado = NOW()
+                             WHERE apartamento_usuario_id = ?
+                               AND estado = 'bloqueado'
+                               AND motivo_estado LIKE '%morosidad%'";
+            Database::execute($sqlReactivar, [$aptUserId]);
+        }
+    }
 }
