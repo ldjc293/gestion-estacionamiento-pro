@@ -208,10 +208,12 @@ class Pago
      */
     private function marcarMensualidadesComoPagadas(): void
     {
-        $sql = "UPDATE mensualidades m
-                JOIN pago_mensualidad pm ON pm.mensualidad_id = m.id
-                SET m.estado = 'pagada'
-                WHERE pm.pago_id = ? AND m.estado != 'pagada'";
+        $sql = "UPDATE mensualidades
+                SET estado = 'pagada'
+                FROM pago_mensualidad pm
+                WHERE pm.mensualidad_id = mensualidades.id
+                  AND pm.pago_id = ?
+                  AND mensualidades.estado != 'pagada'";
 
         Database::execute($sql, [$this->id]);
 
