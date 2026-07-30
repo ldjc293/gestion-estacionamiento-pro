@@ -203,22 +203,34 @@ class RegistrarPagoPresencial {
     setupCurrencyConversion() {
         const monedaSelect = document.getElementById('moneda');
         const montoInput = document.getElementById('monto');
+        const referenciaInput = document.getElementById('referencia');
+        const labelReferencia = document.getElementById('label-referencia');
 
         if (monedaSelect && montoInput) {
-            // Función para actualizar el símbolo de moneda
-            const actualizarSimboloMoneda = () => {
+            // Función para actualizar el símbolo de moneda e indicador de requerido para referencia
+            const actualizarEstadoMoneda = () => {
                 const symbol = document.getElementById('moneda-symbol');
                 if (symbol) {
                     symbol.textContent = monedaSelect.value === 'USD' ? '$' : 'Bs';
                 }
+                
+                if (referenciaInput && labelReferencia) {
+                    if (monedaSelect.value === 'Bs') {
+                        referenciaInput.required = true;
+                        labelReferencia.innerHTML = 'Referencia <span class="text-danger">*</span>';
+                    } else {
+                        referenciaInput.required = false;
+                        labelReferencia.innerHTML = 'Referencia';
+                    }
+                }
             };
 
-            // Actualizar símbolo inmediatamente
-            actualizarSimboloMoneda();
+            // Actualizar estado inmediatamente
+            actualizarEstadoMoneda();
 
-            // Actualizar símbolo y recalcular monto total cuando cambie la moneda
+            // Actualizar estado y recalcular monto total cuando cambie la moneda
             monedaSelect.addEventListener('change', () => {
-                actualizarSimboloMoneda();
+                actualizarEstadoMoneda();
                 this.calcularTotal();
             });
 
@@ -236,10 +248,19 @@ class RegistrarPagoPresencial {
 
         form.addEventListener('submit', (e) => {
             const checkboxes = document.querySelectorAll('.mensualidad-checkbox:checked');
+            const monedaSelect = document.getElementById('moneda');
+            const referenciaInput = document.getElementById('referencia');
 
             if (checkboxes.length === 0) {
                 e.preventDefault();
                 this.showAlert('Debes seleccionar al menos una mensualidad', 'danger');
+                return false;
+            }
+
+            if (monedaSelect && monedaSelect.value === 'Bs' && referenciaInput && !referenciaInput.value.trim()) {
+                e.preventDefault();
+                this.showAlert('El número de referencia es obligatorio para pagos en Bolívares.', 'danger');
+                referenciaInput.focus();
                 return false;
             }
 

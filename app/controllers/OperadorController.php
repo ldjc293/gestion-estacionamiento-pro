@@ -449,6 +449,13 @@ class OperadorController
             return;
         }
 
+        // Si se paga en Bolívares (Bs), la referencia es obligatoria
+        if ($moneda === 'Bs' && empty($referencia)) {
+            $_SESSION['error'] = 'El número de referencia es obligatorio para pagos en Bolívares.';
+            redirect($redirectUrl);
+            return;
+        }
+
         if ($monto <= 0) {
             $_SESSION['error'] = 'El monto debe ser mayor a 0';
             redirect($redirectUrl);

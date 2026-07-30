@@ -294,10 +294,11 @@
         </div>
 
         <div class="col-md-6 mb-3">
-            <label class="form-label fw-bold">Referencia</label>
+            <label class="form-label fw-bold" id="label-referencia">Referencia</label>
             <input type="text"
                    class="form-control"
                    name="referencia"
+                   id="referencia"
                    placeholder="Ej: 123456789">
         </div>
     </div>
