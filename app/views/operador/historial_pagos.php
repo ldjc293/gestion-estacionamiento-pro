@@ -157,21 +157,11 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 <?php endif; ?>
 
                                                 <?php if ($pago['comprobante_ruta']): ?>
-                                                    <?php 
-                                                    $ext = strtolower(pathinfo($pago['comprobante_ruta'], PATHINFO_EXTENSION));
-                                                    if ($ext === 'pdf'): 
-                                                    ?>
-                                                        <a href="<?= url($pago['comprobante_ruta']) ?>" target="_blank"
-                                                           class="btn btn-outline-primary" title="Ver comprobante PDF">
-                                                            <i class="bi bi-file-pdf"></i>
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <button type="button" class="btn btn-outline-primary" 
-                                                                onclick="verComprobante('<?= url($pago['comprobante_ruta']) ?>')"
-                                                                title="Ver comprobante">
-                                                            <i class="bi bi-eye"></i>
-                                                        </button>
-                                                    <?php endif; ?>
+                                                    <button type="button" class="btn btn-outline-primary" 
+                                                            onclick="verComprobante('<?= url($pago['comprobante_ruta']) ?>')"
+                                                            title="Ver comprobante">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
                                                 <?php endif; ?>
 
                                                 <?php if ($pago['estado_comprobante'] === 'pendiente' || $pago['estado_comprobante'] === 'no_aplica'): ?>
@@ -224,21 +214,26 @@ require_once __DIR__ . '/../layouts/header.php';
 <!-- Modal Previsualización Comprobante -->
 <div class="modal fade" id="modalComprobante" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
                 <h5 class="modal-title">
-                    <i class="bi bi-image"></i> Comprobante de Pago
+                    <i class="bi bi-file-earmark-image me-2"></i> Comprobante de Pago
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body text-center p-0 bg-light">
-                <img id="imgComprobante" src="" class="img-fluid" style="max-height: 80vh;" alt="Comprobante">
+            <div class="modal-body text-center p-3 bg-light">
+                <div id="wrapperImgH">
+                    <img id="imgComprobante" src="" class="img-fluid rounded shadow-sm" style="max-height: 75vh;" alt="Comprobante">
+                </div>
+                <div id="wrapperPdfH" class="d-none" style="height: 75vh;">
+                    <iframe id="pdfComprobante" src="" style="width:100%; height:100%; border:none;" class="rounded shadow-sm"></iframe>
+                </div>
             </div>
-            <div class="modal-footer">
-                <a id="btnDescargarComprobante" href="#" download class="btn btn-primary">
-                    <i class="bi bi-download"></i> Descargar
+            <div class="modal-footer bg-light border-0">
+                <a id="btnDescargarComprobante" href="#" target="_blank" download class="btn btn-primary btn-sm">
+                    <i class="bi bi-download"></i> Abrir / Descargar
                 </a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -246,7 +241,6 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <script>
 function verDetalles(pagoId) {
-    // Mostrar modal con spinner
     const modal = new bootstrap.Modal(document.getElementById('modalDetalles'));
     const contenido = document.getElementById('detalles-contenido');
 
@@ -261,8 +255,6 @@ function verDetalles(pagoId) {
 
     modal.show();
 
-    // Aquí podrías hacer una llamada AJAX para obtener los detalles completos
-    // Por ahora, mostraremos un mensaje informativo
     setTimeout(() => {
         contenido.innerHTML = `
             <div class="alert alert-info">
@@ -277,11 +269,28 @@ function verDetalles(pagoId) {
 function verComprobante(url) {
     const modalElement = document.getElementById('modalComprobante');
     const modal = new bootstrap.Modal(modalElement);
+    const imgWrapper = document.getElementById('wrapperImgH');
+    const pdfWrapper = document.getElementById('wrapperPdfH');
     const img = document.getElementById('imgComprobante');
+    const pdf = document.getElementById('pdfComprobante');
     const btnDescargar = document.getElementById('btnDescargarComprobante');
     
-    img.src = url;
     btnDescargar.href = url;
+
+    const cleanUrl = url.split('?')[0].toLowerCase();
+    const isPDF = cleanUrl.endsWith('.pdf');
+
+    if (isPDF) {
+        imgWrapper.classList.add('d-none');
+        img.src = '';
+        pdf.src = url;
+        pdfWrapper.classList.remove('d-none');
+    } else {
+        pdfWrapper.classList.add('d-none');
+        pdf.src = '';
+        img.src = url;
+        imgWrapper.classList.remove('d-none');
+    }
     
     modal.show();
 }

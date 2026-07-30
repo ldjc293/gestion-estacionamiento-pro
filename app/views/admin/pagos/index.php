@@ -124,42 +124,53 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <div class="dropdown">
-                                                    <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown">
-                                                        <i class="bi bi-three-dots-vertical"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu">
-                                                        <li>
-                                                            <a class="dropdown-item" href="<?= url('admin/usuarios/pagos?id=' . ($pago['usuario_id'] ?? 0)) ?>">
-                                                                <i class="bi bi-person me-2"></i> Ver Usuario
-                                                            </a>
-                                                        </li>
-                                                        <?php if($pago['comprobante_ruta']): ?>
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <?php if(!empty($pago['comprobante_ruta'])): ?>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                                                onclick="verComprobanteUniversal('<?= url($pago['comprobante_ruta']) ?>', 'Comprobante - <?= htmlspecialchars($pago['usuario_nombre'] ?? 'Cliente', ENT_QUOTES) ?>')"
+                                                                title="Ver Comprobante">
+                                                            <i class="bi bi-eye-fill"></i> Ver
+                                                        </button>
+                                                    <?php endif; ?>
+
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown">
+                                                            <i class="bi bi-three-dots-vertical"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu">
                                                             <li>
-                                                                <a class="dropdown-item" href="<?= url($pago['comprobante_ruta']) ?>" target="_blank">
-                                                                    <i class="bi bi-file-image me-2"></i> Ver Comprobante
+                                                                <a class="dropdown-item" href="<?= url('admin/usuarios/pagos?id=' . ($pago['usuario_id'] ?? 0)) ?>">
+                                                                    <i class="bi bi-person me-2"></i> Ver Historial del Usuario
                                                                 </a>
                                                             </li>
-                                                        <?php endif; ?>
-                                                        
-                                                        <?php if($pago['estado_comprobante'] == 'pendiente'): ?>
-                                                            <li><hr class="dropdown-divider"></li>
-                                                            <li>
-                                                                <form action="<?= url('admin/pagos/aprobar') ?>" method="POST" style="display:inline;">
-                                                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
-                                                                    <input type="hidden" name="pago_id" value="<?= $pago['id'] ?>">
-                                                                    <button type="submit" class="dropdown-item text-success">
-                                                                        <i class="bi bi-check-circle me-2"></i> Aprobar
+                                                            <?php if(!empty($pago['comprobante_ruta'])): ?>
+                                                                <li>
+                                                                    <button type="button" class="dropdown-item"
+                                                                            onclick="verComprobanteUniversal('<?= url($pago['comprobante_ruta']) ?>', 'Comprobante - <?= htmlspecialchars($pago['usuario_nombre'] ?? 'Cliente', ENT_QUOTES) ?>')">
+                                                                        <i class="bi bi-file-earmark-image me-2"></i> Ver Comprobante
                                                                     </button>
-                                                                </form>
-                                                            </li>
-                                                            <li>
-                                                                <button class="dropdown-item text-danger" onclick="rechazarPago(<?= $pago['id'] ?>)">
-                                                                    <i class="bi bi-x-circle me-2"></i> Rechazar
-                                                                </button>
-                                                            </li>
-                                                        <?php endif; ?>
-                                                    </ul>
+                                                                </li>
+                                                            <?php endif; ?>
+                                                            
+                                                            <?php if($pago['estado_comprobante'] == 'pendiente'): ?>
+                                                                <li><hr class="dropdown-divider"></li>
+                                                                <li>
+                                                                    <form action="<?= url('admin/pagos/aprobar') ?>" method="POST" style="display:inline;">
+                                                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                                                        <input type="hidden" name="pago_id" value="<?= $pago['id'] ?>">
+                                                                        <button type="submit" class="dropdown-item text-success">
+                                                                            <i class="bi bi-check-circle me-2"></i> Aprobar
+                                                                        </button>
+                                                                    </form>
+                                                                </li>
+                                                                <li>
+                                                                    <button class="dropdown-item text-danger" onclick="rechazarPago(<?= $pago['id'] ?>)">
+                                                                        <i class="bi bi-x-circle me-2"></i> Rechazar
+                                                                    </button>
+                                                                </li>
+                                                            <?php endif; ?>
+                                                        </ul>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -201,7 +212,66 @@ require_once __DIR__ . '/../../layouts/header.php';
     </div>
 </div>
 
+<!-- Modal Visor de Comprobante Universal -->
+<div class="modal fade" id="modalComprobanteUniversal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="modalComprobanteUniversalLabel"><i class="bi bi-file-earmark-image me-2"></i>Comprobante</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center bg-light p-3">
+                <div id="wrapperImg" class="d-none">
+                    <img id="imgComprobanteUniversal" src="" class="img-fluid rounded shadow-sm" style="max-height: 75vh;">
+                </div>
+                <div id="wrapperPdf" class="d-none" style="height: 75vh;">
+                    <iframe id="pdfComprobanteUniversal" src="" style="width: 100%; height: 100%; border: none;" class="rounded shadow-sm"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <a id="btnDescargarUniversal" href="#" target="_blank" download class="btn btn-primary btn-sm">
+                    <i class="bi bi-download me-1"></i> Abrir / Descargar
+                </a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+function verComprobanteUniversal(src, title) {
+    const modalEl = document.getElementById('modalComprobanteUniversal');
+    if (!modalEl) return;
+
+    const modal = new bootstrap.Modal(modalEl);
+    const imgWrapper = document.getElementById('wrapperImg');
+    const pdfWrapper = document.getElementById('wrapperPdf');
+    const img = document.getElementById('imgComprobanteUniversal');
+    const pdf = document.getElementById('pdfComprobanteUniversal');
+    const label = document.getElementById('modalComprobanteUniversalLabel');
+    const btnDescargar = document.getElementById('btnDescargarUniversal');
+
+    label.textContent = title || 'Comprobante';
+    btnDescargar.href = src;
+
+    const cleanSrc = src.split('?')[0].toLowerCase();
+    const isPDF = cleanSrc.endsWith('.pdf');
+
+    if (isPDF) {
+        imgWrapper.classList.add('d-none');
+        img.src = '';
+        pdf.src = src;
+        pdfWrapper.classList.remove('d-none');
+    } else {
+        pdfWrapper.classList.add('d-none');
+        pdf.src = '';
+        img.src = src;
+        imgWrapper.classList.remove('d-none');
+    }
+
+    modal.show();
+}
+
 function rechazarPago(id) {
     document.getElementById('pagoIdRechazo').value = id;
     new bootstrap.Modal(document.getElementById('modalRechazo')).show();

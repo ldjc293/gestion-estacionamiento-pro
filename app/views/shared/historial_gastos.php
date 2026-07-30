@@ -177,19 +177,24 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
-<!-- Modal Visor de Imagen -->
+<!-- Modal Visor de Imagen/Documento -->
 <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title" id="imageModalLabel">Visor de Imagen</h5>
+                <h5 class="modal-title" id="imageModalLabel"><i class="bi bi-file-earmark-image me-2"></i>Visor de Comprobante</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body text-center bg-light">
-                <img src="" id="modalImg" class="img-fluid rounded shadow-sm" style="max-height: 70vh;">
+            <div class="modal-body text-center bg-light p-3">
+                <div id="modalImgWrapper">
+                    <img src="" id="modalImg" class="img-fluid rounded shadow-sm" style="max-height: 70vh;">
+                </div>
+                <div id="modalPdfWrapper" class="d-none" style="height: 70vh;">
+                    <iframe id="modalPdf" src="" style="width:100%; height:100%; border:none;" class="rounded shadow-sm"></iframe>
+                </div>
             </div>
             <div class="modal-footer bg-light border-0">
-                <a href="" id="btnDownloadImage" download class="btn btn-primary btn-sm"><i class="bi bi-download"></i> Descargar Imagen</a>
+                <a href="" id="btnDownloadImage" target="_blank" download class="btn btn-primary btn-sm"><i class="bi bi-download"></i> Abrir / Descargar</a>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
@@ -198,8 +203,13 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    const modalEl = document.getElementById('imageModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
     const modalImg = document.getElementById('modalImg');
+    const modalPdf = document.getElementById('modalPdf');
+    const modalImgWrapper = document.getElementById('modalImgWrapper');
+    const modalPdfWrapper = document.getElementById('modalPdfWrapper');
     const modalLabel = document.getElementById('imageModalLabel');
     const downloadBtn = document.getElementById('btnDownloadImage');
 
@@ -208,9 +218,23 @@ document.addEventListener('DOMContentLoaded', function() {
             const src = this.getAttribute('data-src');
             const title = this.getAttribute('data-title');
             
-            modalImg.src = src;
             modalLabel.textContent = title;
             downloadBtn.href = src;
+
+            const cleanSrc = src.split('?')[0].toLowerCase();
+            const isPDF = cleanSrc.endsWith('.pdf');
+
+            if (isPDF) {
+                modalImgWrapper.classList.add('d-none');
+                modalImg.src = '';
+                modalPdf.src = src;
+                modalPdfWrapper.classList.remove('d-none');
+            } else {
+                modalPdfWrapper.classList.add('d-none');
+                modalPdf.src = '';
+                modalImg.src = src;
+                modalImgWrapper.classList.remove('d-none');
+            }
             
             modal.show();
         });

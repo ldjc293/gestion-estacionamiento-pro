@@ -126,10 +126,14 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <?php if($pago['comprobante_ruta']): ?>
-                                                    <a href="<?= url($pago['comprobante_ruta']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                        <i class="bi bi-eye"></i>
-                                                    </a>
+                                                <?php if(!empty($pago['comprobante_ruta'])): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                                            onclick="verComprobanteUniversal('<?= url($pago['comprobante_ruta']) ?>', 'Comprobante de Pago')"
+                                                            title="Ver Comprobante">
+                                                        <i class="bi bi-eye-fill me-1"></i> Ver Comprobante
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span class="text-muted small">Sin comprobante</span>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -144,6 +148,67 @@ require_once __DIR__ . '/../../layouts/header.php';
         </div>
     </div>
 </div>
+
+<!-- Modal Visor de Comprobante Universal -->
+<div class="modal fade" id="modalComprobanteUniversal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="modalComprobanteUniversalLabel"><i class="bi bi-file-earmark-image me-2"></i>Comprobante de Pago</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center bg-light p-3">
+                <div id="wrapperImg" class="d-none">
+                    <img id="imgComprobanteUniversal" src="" class="img-fluid rounded shadow-sm" style="max-height: 75vh;">
+                </div>
+                <div id="wrapperPdf" class="d-none" style="height: 75vh;">
+                    <iframe id="pdfComprobanteUniversal" src="" style="width: 100%; height: 100%; border: none;" class="rounded shadow-sm"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <a id="btnDescargarUniversal" href="#" target="_blank" download class="btn btn-primary btn-sm">
+                    <i class="bi bi-download me-1"></i> Abrir / Descargar
+                </a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function verComprobanteUniversal(src, title) {
+    const modalEl = document.getElementById('modalComprobanteUniversal');
+    if (!modalEl) return;
+
+    const modal = new bootstrap.Modal(modalEl);
+    const imgWrapper = document.getElementById('wrapperImg');
+    const pdfWrapper = document.getElementById('wrapperPdf');
+    const img = document.getElementById('imgComprobanteUniversal');
+    const pdf = document.getElementById('pdfComprobanteUniversal');
+    const label = document.getElementById('modalComprobanteUniversalLabel');
+    const btnDescargar = document.getElementById('btnDescargarUniversal');
+
+    label.textContent = title || 'Comprobante de Pago';
+    btnDescargar.href = src;
+
+    const cleanSrc = src.split('?')[0].toLowerCase();
+    const isPDF = cleanSrc.endsWith('.pdf');
+
+    if (isPDF) {
+        imgWrapper.classList.add('d-none');
+        img.src = '';
+        pdf.src = src;
+        pdfWrapper.classList.remove('d-none');
+    } else {
+        pdfWrapper.classList.add('d-none');
+        pdf.src = '';
+        img.src = src;
+        imgWrapper.classList.remove('d-none');
+    }
+
+    modal.show();
+}
+</script>
 
 <?php require_once __DIR__ . '/../../layouts/footer.php'; ?>
 
