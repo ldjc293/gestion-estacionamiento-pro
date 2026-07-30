@@ -709,7 +709,7 @@ class Usuario
                 LIMIT ?";
 
         $params = [
-            $criterio,
+            "%$criterio%",
             "%$criterio%",
             "%$criterio%",
             "%$criterio%",

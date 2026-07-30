@@ -17,21 +17,31 @@ if (window.registrarPago) {
         const searchInput = document.getElementById('clienteSearch');
         const suggestionsList = document.getElementById('suggestionsList');
 
-        if (!searchInput) return;
+        if (!searchInput || !suggestionsList) return;
 
-        searchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.trim();
-
+        const executeSearch = (searchTerm) => {
             clearTimeout(debounceTimer);
 
-            if (searchTerm.length < 2) {
+            if (searchTerm.length < 1) {
                 suggestionsList.style.display = 'none';
+                suggestionsList.innerHTML = '';
                 return;
             }
 
             debounceTimer = setTimeout(() => {
                 this.buscarClientes(searchTerm);
-            }, 300);
+            }, 200);
+        };
+
+        searchInput.addEventListener('input', (e) => {
+            executeSearch(e.target.value.trim());
+        });
+
+        searchInput.addEventListener('focus', (e) => {
+            const searchTerm = e.target.value.trim();
+            if (searchTerm.length >= 1) {
+                executeSearch(searchTerm);
+            }
         });
 
         // Cerrar autocompletar al hacer clic fuera
@@ -49,28 +59,38 @@ if (window.registrarPago) {
             const data = await response.json();
 
             const suggestionsList = document.getElementById('suggestionsList');
+            if (!suggestionsList) return;
 
-            if (data.length > 0) {
+            if (Array.isArray(data) && data.length > 0) {
                 let html = '';
                 data.forEach(cliente => {
-                    const displayName = cliente.nombre_completo +
-                                      (cliente.email ? ' (' + cliente.email + ')' : '') +
-                                      (cliente.apartamento ? ' - ' + cliente.apartamento : '');
-                    html += `<a href="#" class="list-group-item list-group-item-action"
-                               onclick="registrarPago.seleccionarCliente('${cliente.id}', '${cliente.nombre_completo.replace(/'/g, "\\'")}')"
+                    const nombreEscaped = cliente.nombre_completo.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const emailInfo = cliente.email ? `<span class="text-muted small me-2"><i class="bi bi-envelope"></i> ${cliente.email}</span>` : '';
+                    const cedulaInfo = cliente.cedula ? `<span class="text-muted small me-2"><i class="bi bi-card-text"></i> ${cliente.cedula}</span>` : '';
+                    const aptoInfo = cliente.apartamento ? `<span class="badge bg-secondary px-2 py-1">${cliente.apartamento}</span>` : '';
+
+                    html += `<button type="button" class="list-group-item list-group-item-action py-3 text-start border-bottom"
+                               onclick="registrarPago.seleccionarCliente('${cliente.id}', '${nombreEscaped}')"
                                data-cliente-id="${cliente.id}">
-                                <div class="fw-bold">${cliente.nombre_completo}</div>
-                                <small class="text-muted">${cliente.email || ''} ${cliente.apartamento ? ' - ' + cliente.apartamento : ''}</small>
-                            </a>`;
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong class="text-primary fs-6">${cliente.nombre_completo}</strong>
+                                    ${aptoInfo}
+                                </div>
+                                <div class="small">
+                                    ${emailInfo} ${cedulaInfo}
+                                </div>
+                            </button>`;
                 });
                 suggestionsList.innerHTML = html;
                 suggestionsList.style.display = 'block';
             } else {
-                suggestionsList.style.display = 'none';
+                suggestionsList.innerHTML = '<div class="list-group-item text-muted small p-3 text-center">No se encontraron clientes coincidentes</div>';
+                suggestionsList.style.display = 'block';
             }
         } catch (error) {
             console.error('Error en autocompletar:', error);
-            document.getElementById('suggestionsList').style.display = 'none';
+            const suggestionsList = document.getElementById('suggestionsList');
+            if (suggestionsList) suggestionsList.style.display = 'none';
         }
     };
 
@@ -81,7 +101,10 @@ if (window.registrarPago) {
         if (hiddenId) {
             hiddenId.value = clienteId;
         }
-        document.getElementById('suggestionsList').style.display = 'none';
+        const suggestionsList = document.getElementById('suggestionsList');
+        if (suggestionsList) {
+            suggestionsList.style.display = 'none';
+        }
         document.getElementById('searchForm').submit();
     };
 

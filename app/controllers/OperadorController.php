@@ -328,12 +328,18 @@ class OperadorController
         } elseif ($busqueda) {
             $resultadosBusqueda = Usuario::buscarClientes($busqueda);
             
+            // Si hay exactamente 1 coincidencia Y el texto buscado coincide exactamente con email o cédula
             if (count($resultadosBusqueda) === 1) {
-                $cliente = Usuario::findById($resultadosBusqueda[0]['id']);
-            } elseif (count($resultadosBusqueda) > 1) {
-                // Múltiples coincidencias, se presentarán en la vista para seleccionar
-            } else {
-                $_SESSION['error'] = 'Cliente no encontrado';
+                $bClean = strtolower(trim($busqueda));
+                $eClean = strtolower(trim($resultadosBusqueda[0]['email'] ?? ''));
+                $cClean = strtolower(trim($resultadosBusqueda[0]['cedula'] ?? ''));
+                if ($bClean === $eClean || ($cClean !== '' && $bClean === $cClean)) {
+                    $cliente = Usuario::findById($resultadosBusqueda[0]['id']);
+                }
+            }
+            
+            if (!$cliente && empty($resultadosBusqueda)) {
+                $_SESSION['error'] = 'No se encontraron clientes coincidentes con la búsqueda.';
             }
         }
 
@@ -1037,7 +1043,7 @@ class OperadorController
 
         $criterio = sanitize($_GET['q'] ?? '');
 
-        if (strlen($criterio) < 2) {
+        if (strlen($criterio) < 1) {
             echo json_encode([]);
             exit;
         }

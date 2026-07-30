@@ -31,7 +31,7 @@
 
             <!-- Autocomplete dropdown -->
             <div id="autocompleteResults" class="position-relative mt-2">
-                <div id="suggestionsList" class="list-group position-absolute w-100 shadow border-0" style="z-index: 1000; max-height: 250px; overflow-y: auto; display: none;"></div>
+                <div id="suggestionsList" class="list-group position-absolute w-100 shadow-lg border rounded-3" style="z-index: 1050; max-height: 320px; overflow-y: auto; display: none; background: white;"></div>
             </div>
         </div>
     </div>
@@ -43,33 +43,33 @@
             <i class="bi bi-info-circle text-info me-2"></i>
             <strong>¿Cómo buscar?</strong><br>
             <small class="text-muted">
-                Puedes buscar por: nombre completo, email, número de cédula, bloque, escalera, piso o apartamento
+                Escribe desde 1 letra para desplegar las sugerencias o buscar por: nombre, email, cédula, bloque o apartamento.
             </small>
         </div>
     </div>
 </div>
 
-<?php if (!empty($resultadosBusqueda) && count($resultadosBusqueda) > 1 && !$cliente): ?>
+<?php if (!empty($resultadosBusqueda) && !$cliente): ?>
     <div class="row justify-content-center">
         <div class="col-md-10 col-lg-8">
-            <div class="card border-warning shadow-sm">
-                <div class="card-header bg-warning-subtle text-warning-emphasis py-3">
-                    <h6 class="mb-0 text-warning-emphasis fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Múltiples coincidencias encontradas</h6>
-                    <small class="text-muted">Por favor selecciona el cliente correcto de la lista:</small>
+            <div class="card border-primary shadow-sm">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2"></i>Coincidencias encontradas (<?= count($resultadosBusqueda) ?>)</h6>
+                    <small class="text-white-50">Por favor selecciona el cliente deseado:</small>
                 </div>
                 <div class="list-group list-group-flush text-start">
                     <?php foreach ($resultadosBusqueda as $res): ?>
                         <a href="?buscar=<?= urlencode($res['nombre_completo']) ?>&cliente_id=<?= $res['id'] ?><?= isset($_GET['modo']) ? '&modo=' . urlencode($_GET['modo']) : '' ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
                             <div>
-                                <strong class="text-primary"><?= htmlspecialchars($res['nombre_completo']) ?></strong>
-                                <div class="text-muted small">
-                                    <?= htmlspecialchars($res['email'] ?? 'Sin correo') ?> 
+                                <strong class="text-primary fs-6"><?= htmlspecialchars($res['nombre_completo']) ?></strong>
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-envelope me-1"></i><?= htmlspecialchars($res['email'] ?? 'Sin correo') ?> 
                                     <?php if (!empty($res['cedula'])): ?>
-                                        | Cédula: <?= htmlspecialchars($res['cedula']) ?>
+                                        | <i class="bi bi-card-text me-1"></i>Cédula: <?= htmlspecialchars($res['cedula']) ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <span class="badge bg-secondary"><?= htmlspecialchars($res['apartamento'] ?? 'Sin apartamento') ?></span>
+                            <span class="badge bg-secondary px-3 py-2 fs-7"><?= htmlspecialchars($res['apartamento'] ?? 'Sin apartamento') ?></span>
                         </a>
                     <?php endforeach; ?>
                 </div>
