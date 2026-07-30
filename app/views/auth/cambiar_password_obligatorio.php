@@ -337,9 +337,17 @@
                         <i class="bi bi-circle"></i>
                         <span>Al menos 1 letra mayúscula</span>
                     </div>
+                    <div class="requirement-item" id="req-lowercase">
+                        <i class="bi bi-circle"></i>
+                        <span>Al menos 1 letra minúscula</span>
+                    </div>
                     <div class="requirement-item" id="req-number">
                         <i class="bi bi-circle"></i>
                         <span>Al menos 1 número</span>
+                    </div>
+                    <div class="requirement-item" id="req-special">
+                        <i class="bi bi-circle"></i>
+                        <span>Al menos 1 carácter especial (@, $, !, %, *, ?, &)</span>
                     </div>
                     <div class="requirement-item" id="req-match">
                         <i class="bi bi-circle"></i>
@@ -391,7 +399,9 @@
         let requirements = {
             length: false,
             uppercase: false,
+            lowercase: false,
             number: false,
+            special: false,
             match: false
         };
 
@@ -423,9 +433,17 @@
             requirements.uppercase = /[A-Z]/.test(password);
             updateRequirement('req-uppercase', requirements.uppercase);
 
+            // Lowercase
+            requirements.lowercase = /[a-z]/.test(password);
+            updateRequirement('req-lowercase', requirements.lowercase);
+
             // Number
             requirements.number = /\d/.test(password);
             updateRequirement('req-number', requirements.number);
+
+            // Special
+            requirements.special = /[^A-Za-z0-9]/.test(password);
+            updateRequirement('req-special', requirements.special);
 
             // Check match
             checkMatch();
