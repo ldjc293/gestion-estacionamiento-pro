@@ -754,6 +754,6 @@ function generarMensualidadesFuturas(meses) {
     }
 }
 </script>
-<script src="<?= url('js/registrar-pago-presencial.js') ?>?v=<?= time() ?>"></script>
+<script src="<?= url('/js/registrar-pago-presencial.js') ?>?v=<?= time() ?>"></script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
