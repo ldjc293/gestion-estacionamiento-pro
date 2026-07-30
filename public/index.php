@@ -47,6 +47,13 @@ $urlParts = array_values(array_filter(explode('/', $url)));
 
 // Definir el controlador y la acción por defecto
 $controller = !empty($urlParts[0]) ? $urlParts[0] : 'auth';
+
+// Normalizar si la petición viene con prefijo /public/uploads/...
+if ($controller === 'public' && isset($urlParts[1]) && $urlParts[1] === 'uploads') {
+    array_shift($urlParts);
+    $controller = 'uploads';
+}
+
 $action = !empty($urlParts[1]) ? $urlParts[1] : 'login';
 
 // Convertir kebab-case a camelCase para el action

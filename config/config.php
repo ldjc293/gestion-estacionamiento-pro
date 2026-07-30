@@ -95,9 +95,12 @@ if (!empty($_ENV['APP_URL']) && $_ENV['APP_URL'] !== 'http://localhost/controlde
 } else if (isset($_SERVER['HTTP_HOST'])) {
     $protocol = $isHttps ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'];
-    $scriptName = $_SERVER['SCRIPT_NAME'];
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $basePath = dirname($scriptName);
     $basePath = str_replace('\\', '/', $basePath);
+    if ($basePath === '/public' || substr($basePath, -7) === '/public') {
+        $basePath = substr($basePath, 0, -7);
+    }
     $basePath = rtrim($basePath, '/');
     define('APP_URL', $protocol . '://' . $host . $basePath);
 } else {
