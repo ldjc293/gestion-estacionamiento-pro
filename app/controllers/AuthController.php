@@ -620,9 +620,21 @@ class AuthController
             redirect('auth/registro');
         }
 
-        // Verificar que el email no esté registrado
-        if (Usuario::findByEmail($_POST['email'])) {
-            $_SESSION['error'] = 'El email ya está registrado en el sistema';
+        $email = trim($_POST['email'] ?? '');
+
+        // 1. Verificar que el email no esté ya registrado en el sistema como usuario activo
+        if (Usuario::findByEmail($email)) {
+            $_SESSION['error'] = 'El correo electrónico <strong>' . htmlspecialchars($email) . '</strong> ya se encuentra registrado en el sistema. Si ya tienes una cuenta, por favor inicie sesión o utilice la opción de recuperar contraseña.';
+            $_SESSION['form_data'] = $_POST;
+            redirect('auth/registro');
+        }
+
+        // 2. Verificar si ya existe una solicitud de registro pendiente de aprobación para este correo
+        require_once __DIR__ . '/../models/SolicitudCambio.php';
+        $solicitudPendiente = SolicitudCambio::buscarSolicitudRegistroPendientePorEmail($email);
+
+        if ($solicitudPendiente) {
+            $_SESSION['error'] = 'El correo <strong>' . htmlspecialchars($email) . '</strong> ya está registrado y su solicitud está actualmente <strong>esperando por aprobación</strong> administrativa. Por favor espere a que sea procesada.';
             $_SESSION['form_data'] = $_POST;
             redirect('auth/registro');
         }

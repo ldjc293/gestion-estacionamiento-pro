@@ -118,6 +118,40 @@ class SolicitudCambio
     }
 
     /**
+     * Buscar si existe una solicitud de registro pendiente para un email específico
+     *
+     * @param string $email Email a buscar
+     * @return array|null Fila de la solicitud o null
+     */
+    public static function buscarSolicitudRegistroPendientePorEmail(string $email): ?array
+    {
+        $emailClean = strtolower(trim($email));
+        if (empty($emailClean)) return null;
+
+        $sql = "SELECT id, estado, datos_nuevo_usuario, observaciones, fecha_solicitud 
+                FROM solicitudes_cambios 
+                WHERE tipo_solicitud = 'registro_nuevo_usuario' 
+                  AND estado = 'pendiente'
+                ORDER BY id DESC";
+
+        $solicitudes = Database::fetchAll($sql);
+
+        foreach ($solicitudes as $s) {
+            if (!empty($s['datos_nuevo_usuario'])) {
+                $datos = is_array($s['datos_nuevo_usuario']) 
+                    ? $s['datos_nuevo_usuario'] 
+                    : json_decode($s['datos_nuevo_usuario'], true);
+
+                if (isset($datos['email']) && strtolower(trim($datos['email'])) === $emailClean) {
+                    return $s;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Aprobar solicitud
      *
      * @param int $aprobadoPor ID del usuario que aprueba
