@@ -619,6 +619,6 @@
     </script>
 
     <!-- Confirmaciones y prevención de doble-submit -->
-    <script src="<?= url('/js/confirm-actions.js') ?>"></script>
+    <script src="<?= url('js/confirm-actions.js') ?>"></script>
 </head>
 <body>
