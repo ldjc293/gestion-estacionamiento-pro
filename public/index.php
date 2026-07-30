@@ -68,7 +68,11 @@ if ($controller === 'uploads') {
     $possiblePaths = [
         PUBLIC_PATH . '/' . $relativePath,
         ROOT_PATH . '/' . $relativePath,
-        ROOT_PATH . '/public/' . $relativePath
+        ROOT_PATH . '/public/' . $relativePath,
+        PUBLIC_PATH . '/uploads/' . basename($relativePath),
+        COMPROBANTES_PATH . '/' . basename($relativePath),
+        GASTOS_PATH . '/' . basename($relativePath),
+        RECIBOS_PATH . '/' . basename($relativePath)
     ];
 
     $foundPath = null;
@@ -81,14 +85,22 @@ if ($controller === 'uploads') {
 
     // Fallback de insensibilidad de mayúsculas/minúsculas para sistemas de archivos Linux (Render)
     if (!$foundPath) {
-        $subDirs = [PUBLIC_PATH, ROOT_PATH . '/public', ROOT_PATH];
+        $subDirs = [
+            COMPROBANTES_PATH,
+            GASTOS_PATH,
+            RECIBOS_PATH,
+            UPLOAD_PATH,
+            PUBLIC_PATH,
+            ROOT_PATH . '/public',
+            ROOT_PATH
+        ];
         $targetFileName = strtolower(basename($relativePath));
         $relativeDir = dirname($relativePath);
 
         foreach ($subDirs as $baseDir) {
-            $searchDir = $baseDir . ($relativeDir !== '.' ? '/' . $relativeDir : '');
+            $searchDir = $baseDir . ($relativeDir !== '.' && strpos($baseDir, $relativeDir) === false ? '/' . $relativeDir : '');
             if (is_dir($searchDir)) {
-                $dirFiles = scandir($searchDir);
+                $dirFiles = @scandir($searchDir);
                 if ($dirFiles !== false) {
                     foreach ($dirFiles as $df) {
                         if (strtolower($df) === $targetFileName) {
@@ -106,62 +118,37 @@ if ($controller === 'uploads') {
 
     if ($foundPath) {
         $realPath = realpath($foundPath) ?: $foundPath;
-        $publicReal = realpath(PUBLIC_PATH) ?: PUBLIC_PATH;
-        $rootReal = realpath(ROOT_PATH) ?: ROOT_PATH;
 
-        $normReal = strtolower(str_replace('\\', '/', $realPath));
-        $normPublic = strtolower(str_replace('\\', '/', $publicReal));
-        $normRoot = strtolower(str_replace('\\', '/', $rootReal));
+        $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'jpg'  => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png'  => 'image/png',
+            'gif'  => 'image/gif',
+            'webp' => 'image/webp',
+            'svg'  => 'image/svg+xml',
+            'pdf'  => 'application/pdf',
+            'heic' => 'image/heic',
+            'heif' => 'image/heif'
+        ];
 
-        if (strpos($normReal, $normPublic) === 0 || strpos($normReal, $normRoot) === 0 || strpos($normReal, 'uploads') !== false) {
-            $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
-            $mimeTypes = [
-                'jpg'  => 'image/jpeg',
-                'jpeg' => 'image/jpeg',
-                'png'  => 'image/png',
-                'gif'  => 'image/gif',
-                'webp' => 'image/webp',
-                'svg'  => 'image/svg+xml',
-                'pdf'  => 'application/pdf',
-                'heic' => 'image/heic',
-                'heif' => 'image/heif'
-            ];
+        $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
 
-            $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
-
-            if (ob_get_level()) {
-                ob_end_clean();
-            }
-
-            header('Access-Control-Allow-Origin: *');
-            header('Content-Type: ' . $mime);
-            header('Content-Length: ' . filesize($realPath));
-            header('Content-Disposition: inline; filename="' . basename($realPath) . '"');
-            header('Cache-Control: public, max-age=86400');
-            readfile($realPath);
-            exit;
+        if (ob_get_level()) {
+            ob_end_clean();
         }
+
+        header('Access-Control-Allow-Origin: *');
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . filesize($realPath));
+        header('Content-Disposition: inline; filename="' . basename($realPath) . '"');
+        header('Cache-Control: public, max-age=86400');
+        readfile($realPath);
+        exit;
     }
 
-    // Si el archivo físico no existe en el contenedor (ej. reinicio/redespliegue en Render),
-    // generar un comprobante SVG elegante en lugar de un ícono de imagen rota
-    if (ob_get_level()) {
-        ob_end_clean();
-    }
-    header('Access-Control-Allow-Origin: *');
-    header('Content-Type: image/svg+xml');
-    header('Cache-Control: no-cache, no-store, must-revalidate');
-    $fileNameClean = htmlspecialchars(basename($relativePath), ENT_QUOTES);
-    echo '<svg xmlns="http://www.w3.org/2000/svg" width="450" height="280" viewBox="0 0 450 280">
-      <rect width="100%" height="100%" fill="#f1f5f9" rx="16" stroke="#cbd5e1" stroke-width="2"/>
-      <rect x="24" y="24" width="402" height="232" fill="#ffffff" rx="12" stroke="#e2e8f0"/>
-      <circle cx="225" cy="95" r="32" fill="#3b82f6" opacity="0.12"/>
-      <path d="M213 95l7 7 16-16" stroke="#2563eb" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <text x="225" y="160" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="16" font-weight="700" fill="#1e293b" text-anchor="middle">Comprobante Registrado en Sistema</text>
-      <text x="225" y="186" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="13" fill="#64748b" text-anchor="middle">El soporte físico fue verificado de forma exitosa</text>
-      <rect x="60" y="210" width="330" height="30" fill="#f8fafc" rx="6" stroke="#e2e8f0"/>
-      <text x="225" y="230" font-family="Consolas,Monaco,monospace" font-size="11" fill="#2563eb" text-anchor="middle">' . $fileNameClean . '</text>
-    </svg>';
+    http_response_code(404);
+    echo "Archivo de comprobante no encontrado";
     exit;
 }
 

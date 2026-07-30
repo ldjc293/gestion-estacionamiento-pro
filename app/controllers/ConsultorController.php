@@ -1461,6 +1461,68 @@ class ConsultorController
         redirect('consultor/perfil');
     }
 
+    private function processImageAndSave(string $tmpPath, string $destPath): bool
+    {
+        $ext = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+        if ($ext === 'pdf' || !function_exists('imagecreatefromstring')) {
+            return move_uploaded_file($tmpPath, $destPath);
+        }
+
+        $fileData = @file_get_contents($tmpPath);
+        if (!$fileData) {
+            return move_uploaded_file($tmpPath, $destPath);
+        }
+
+        $image = @imagecreatefromstring($fileData);
+        if (!$image) {
+            return move_uploaded_file($tmpPath, $destPath);
+        }
+
+        if (function_exists('exif_read_data')) {
+            $exif = @exif_read_data($tmpPath);
+            if (!empty($exif['Orientation'])) {
+                switch ($exif['Orientation']) {
+                    case 8:
+                        $image = imagerotate($image, 90, 0);
+                        break;
+                    case 3:
+                        $image = imagerotate($image, 180, 0);
+                        break;
+                    case 6:
+                        $image = imagerotate($image, -90, 0);
+                        break;
+                }
+            }
+        }
+
+        $origW = imagesx($image);
+        $origH = imagesy($image);
+        $maxDim = 1920;
+
+        if ($origW > $maxDim || $origH > $maxDim) {
+            if ($origW > $origH) {
+                $newW = $maxDim;
+                $newH = intval($origH * ($maxDim / $origW));
+            } else {
+                $newH = $maxDim;
+                $newW = intval($origW * ($maxDim / $origH));
+            }
+            $newImg = imagecreatetruecolor($newW, $newH);
+            imagecopyresampled($newImg, $image, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+            imagedestroy($image);
+            $image = $newImg;
+        }
+
+        $saved = @imagejpeg($image, $destPath, 82);
+        imagedestroy($image);
+
+        if (!$saved) {
+            return move_uploaded_file($tmpPath, $destPath);
+        }
+
+        return true;
+    }
+
     private function uploadGastoArchivo(array $file, string $prefix): ?string
     {
         if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
@@ -1470,7 +1532,7 @@ class ConsultorController
 
         $uploadDir = GASTOS_PATH . '/';
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            mkdir($uploadDir, 0777, true);
         }
         
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -1480,14 +1542,14 @@ class ConsultorController
             return null;
         }
 
-        $nombreArchivo = $prefix . '_' . uniqid() . '.' . $ext;
+        $nombreArchivo = $prefix . '_' . uniqid() . '.' . ($ext === 'pdf' ? 'pdf' : 'jpg');
         $rutaDestino = $uploadDir . $nombreArchivo;
 
-        if (move_uploaded_file($file['tmp_name'], $rutaDestino)) {
+        if ($this->processImageAndSave($file['tmp_name'], $rutaDestino)) {
             return 'uploads/gastos/' . $nombreArchivo;
         }
 
-        writeLog("Error uploadGastoArchivo ({$prefix}): Falló move_uploaded_file hacia $rutaDestino", 'error');
+        writeLog("Error uploadGastoArchivo ({$prefix}): Falló procesamiento de archivo hacia $rutaDestino", 'error');
         return null;
     }
 
