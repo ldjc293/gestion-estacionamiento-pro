@@ -420,7 +420,7 @@ function guardarCambioRol() {
 }
 
 function eliminarUsuario(usuarioId, nombreUsuario) {
-    if (confirm('¿Está seguro de que desea eliminar al usuario "' + nombreUsuario + '"?\\n\\nEsta acción NO se puede deshacer.')) {
+    const doDelete = () => {
         const csrfToken = document.querySelector('[name="csrf_token"]').value;
         
         fetch(URL_BASE + '/admin/eliminar-usuario', {
@@ -436,15 +436,57 @@ function eliminarUsuario(usuarioId, nombreUsuario) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: '¡Eliminado!',
+                        text: data.message,
+                        icon: 'success'
+                    }).then(() => location.reload());
+                } else {
+                    alert(data.message);
+                    location.reload();
+                }
             } else {
-                alert(data.message || 'Error al eliminar el usuario');
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'No se pudo eliminar',
+                        text: data.message || 'Error al eliminar el usuario',
+                        icon: 'warning'
+                    });
+                } else {
+                    alert(data.message || 'Error al eliminar el usuario');
+                }
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error al procesar la solicitud');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire('Error', 'Error al procesar la solicitud', 'error');
+            } else {
+                alert('Error al procesar la solicitud');
+            }
         });
+    };
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: '¿Eliminar usuario?',
+            html: '¿Está seguro de que desea eliminar a <strong>' + nombreUsuario + '</strong>?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                doDelete();
+            }
+        });
+    } else {
+        if (confirm('¿Está seguro de que desea eliminar al usuario "' + nombreUsuario + '"?')) {
+            doDelete();
+        }
     }
 }
 

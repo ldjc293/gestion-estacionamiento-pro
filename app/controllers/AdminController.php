@@ -573,24 +573,50 @@ class AdminController
             exit;
         }
 
-        // Verificar si tiene apartamento asignado (cualquier rol puede tener apartamento)
+        // Verificar si tiene un apartamento activo asignado
         $sql = "SELECT COUNT(*) as total FROM apartamento_usuario WHERE usuario_id = ? AND activo = TRUE";
         $result = Database::fetchOne($sql, [$usuarioId]);
-        if ($result['total'] > 0) {
-            echo json_encode(['success' => false, 'message' => 'No se puede eliminar. El usuario tiene un apartamento asignado. Primero debe desasignarlo.']);
+        if (($result['total'] ?? 0) > 0) {
+            echo json_encode(['success' => false, 'message' => 'No se puede eliminar. El usuario tiene un apartamento asignado activo. Primero debe desasignarlo en la sección de gestión de apartamentos.']);
             exit;
         }
 
         try {
-            // Eliminar usuario (soft delete)
-            $sql = "DELETE FROM usuarios WHERE id = ?";
-            Database::execute($sql, [$usuarioId]);
+            // 1. Desactivar usuario inmediatamente (soft delete) para revocar acceso al sistema
+            $usuario->desactivar();
 
-            writeLog("Usuario ID $usuarioId ({$usuario->email}) eliminado por admin {$admin->email}", 'info');
-            echo json_encode(['success' => true, 'message' => 'Usuario eliminado correctamente']);
+            // 2. Comprobar si tiene registros relacionales (pagos, gastos, mensualidades)
+            $sqlCheckPagos = "SELECT COUNT(*) as total FROM pagos WHERE usuario_id = ?";
+            $resPagos = Database::fetchOne($sqlCheckPagos, [$usuarioId]);
+
+            $sqlCheckGastos = "SELECT COUNT(*) as total FROM gastos WHERE registrado_por = ?";
+            $resGastos = Database::fetchOne($sqlCheckGastos, [$usuarioId]);
+
+            $sqlCheckMensualidades = "SELECT COUNT(*) as total FROM mensualidades m JOIN apartamento_usuario au ON au.id = m.apartamento_usuario_id WHERE au.usuario_id = ?";
+            $resMensualidades = Database::fetchOne($sqlCheckMensualidades, [$usuarioId]);
+
+            $totalHistorial = intval($resPagos['total'] ?? 0) + intval($resGastos['total'] ?? 0) + intval($resMensualidades['total'] ?? 0);
+
+            if ($totalHistorial === 0) {
+                // Si el usuario no posee historial financiero, intentar borrado físico definitivo
+                try {
+                    Database::execute("DELETE FROM solicitudes_cambios WHERE apartamento_usuario_id IN (SELECT id FROM apartamento_usuario WHERE usuario_id = ?)", [$usuarioId]);
+                    Database::execute("DELETE FROM apartamento_usuario WHERE usuario_id = ?", [$usuarioId]);
+                    Database::execute("DELETE FROM usuarios WHERE id = ?", [$usuarioId]);
+
+                    writeLog("Usuario ID $usuarioId ({$usuario->email}) eliminado físicamente por admin {$admin->email}", 'info');
+                    echo json_encode(['success' => true, 'message' => 'Usuario eliminado permanentemente del sistema.']);
+                    exit;
+                } catch (Exception $ex) {
+                    writeLog("Soft delete conservado para usuario ID $usuarioId por FK constraint: " . $ex->getMessage(), 'info');
+                }
+            }
+
+            writeLog("Usuario ID $usuarioId ({$usuario->email}) inhabilitado/desactivado por admin {$admin->email}", 'info');
+            echo json_encode(['success' => true, 'message' => 'Usuario eliminado e inhabilitado del sistema correctamente. Se conserva su historial de pagos y egresos por auditoría.']);
         } catch (Exception $e) {
             writeLog("Error al eliminar usuario ID $usuarioId: " . $e->getMessage(), 'error');
-            echo json_encode(['success' => false, 'message' => 'Error al eliminar el usuario']);
+            echo json_encode(['success' => false, 'message' => 'Error al eliminar el usuario: ' . $e->getMessage()]);
         }
         exit;
     }
