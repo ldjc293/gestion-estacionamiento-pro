@@ -57,17 +57,31 @@ $params = array_slice($urlParts, 2);
 // Manejador para archivos estáticos subidos (/uploads/...)
 if ($controller === 'uploads') {
     $relativePath = implode('/', $urlParts);
-    $filePath = PUBLIC_PATH . '/' . $relativePath;
-    if (!file_exists($filePath)) {
-        $filePath = ROOT_PATH . '/' . $relativePath;
+    
+    $possiblePaths = [
+        PUBLIC_PATH . '/' . $relativePath,
+        ROOT_PATH . '/' . $relativePath,
+        ROOT_PATH . '/public/' . $relativePath
+    ];
+
+    $foundPath = null;
+    foreach ($possiblePaths as $path) {
+        if (file_exists($path) && is_file($path)) {
+            $foundPath = $path;
+            break;
+        }
     }
 
-    if (file_exists($filePath) && is_file($filePath)) {
-        $realPath = realpath($filePath);
-        $publicReal = realpath(PUBLIC_PATH);
-        $rootReal = realpath(ROOT_PATH);
+    if ($foundPath) {
+        $realPath = realpath($foundPath);
+        $publicReal = realpath(PUBLIC_PATH) ?: PUBLIC_PATH;
+        $rootReal = realpath(ROOT_PATH) ?: ROOT_PATH;
 
-        if ($realPath && ($publicReal && strpos($realPath, $publicReal) === 0 || $rootReal && strpos($realPath, $rootReal) === 0)) {
+        $normReal = strtolower(str_replace('\\', '/', $realPath));
+        $normPublic = strtolower(str_replace('\\', '/', $publicReal));
+        $normRoot = strtolower(str_replace('\\', '/', $rootReal));
+
+        if (strpos($normReal, $normPublic) === 0 || strpos($normReal, $normRoot) === 0) {
             $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
             $mimeTypes = [
                 'jpg'  => 'image/jpeg',
@@ -80,6 +94,10 @@ if ($controller === 'uploads') {
             ];
 
             $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
+
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
 
             header('Content-Type: ' . $mime);
             header('Content-Length: ' . filesize($realPath));
