@@ -1463,14 +1463,20 @@ class ConsultorController
 
     private function uploadGastoArchivo(array $file, string $prefix): ?string
     {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            writeLog("Error uploadGastoArchivo ({$prefix}): UPLOAD_ERR code " . ($file['error'] ?? 'missing'), 'error');
+            return null;
+        }
+
         $uploadDir = GASTOS_PATH . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
         
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
         if (!in_array($ext, $allowed)) {
+            writeLog("Error uploadGastoArchivo ({$prefix}): Extensión '$ext' no permitida", 'error');
             return null;
         }
 
@@ -1480,6 +1486,8 @@ class ConsultorController
         if (move_uploaded_file($file['tmp_name'], $rutaDestino)) {
             return 'uploads/gastos/' . $nombreArchivo;
         }
+
+        writeLog("Error uploadGastoArchivo ({$prefix}): Falló move_uploaded_file hacia $rutaDestino", 'error');
         return null;
     }
 
@@ -1553,10 +1561,16 @@ class ConsultorController
         $comprobanteRuta = null;
         $reciboRuta = null;
 
+        if (isset($_FILES['comprobante']['error']) && ($_FILES['comprobante']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['comprobante']['error'] === UPLOAD_ERR_FORM_SIZE)) {
+            $_SESSION['error'] = 'El comprobante seleccionado supera el tamaño máximo de archivo permitido por el servidor.';
+            redirect('consultor/registrar-gasto');
+            return;
+        }
+
         if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] !== UPLOAD_ERR_NO_FILE) {
             $comprobanteRuta = $this->uploadGastoArchivo($_FILES['comprobante'], 'comprobante');
             if (!$comprobanteRuta) {
-                $_SESSION['error'] = 'Error al subir el comprobante. Debe ser una imagen válida (JPG, JPEG, PNG, GIF).';
+                $_SESSION['error'] = 'Error al subir el comprobante. Verifique que sea un archivo de imagen o PDF válido (JPG, PNG, WEBP, HEIC, PDF).';
                 redirect('consultor/registrar-gasto');
                 return;
             }
@@ -1569,7 +1583,7 @@ class ConsultorController
         if (isset($_FILES['recibo']) && $_FILES['recibo']['error'] !== UPLOAD_ERR_NO_FILE) {
             $reciboRuta = $this->uploadGastoArchivo($_FILES['recibo'], 'recibo');
             if (!$reciboRuta) {
-                $_SESSION['error'] = 'Error al subir el recibo. Debe ser una imagen válida.';
+                $_SESSION['error'] = 'Error al subir el recibo. Debe ser una imagen o PDF válido.';
                 redirect('consultor/registrar-gasto');
                 return;
             }

@@ -100,17 +100,18 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                     <!-- Foto del Comprobante -->
                                     <div class="col-md-6">
-                                        <label for="comprobante" class="form-label fw-bold">Foto del Comprobante <span class="text-danger">*</span></label>
+                                        <label for="comprobante" class="form-label fw-bold">Foto o Comprobante <span class="text-danger">*</span></label>
                                         <div class="input-group">
-                                            <input type="file" class="form-control" id="comprobante" name="comprobante" accept="image/*" capture="environment" required>
-                                            <label class="btn btn-outline-secondary" for="comprobante" title="Tomar foto / Seleccionar imagen">
-                                                <i class="bi bi-camera-fill"></i>
+                                            <input type="file" class="form-control" id="comprobante" name="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp" required>
+                                            <label class="btn btn-outline-secondary" for="comprobante" title="Seleccionar de galería / Tomar foto">
+                                                <i class="bi bi-image"></i>
                                             </label>
                                         </div>
-                                        <div class="form-text small text-muted">Selecciona un archivo o toma una foto directamente con la cámara.</div>
+                                        <div class="form-text small text-muted">Selecciona una foto de tu galería, archivo o toma una directamente.</div>
                                         <div class="invalid-feedback">Sube o toma una foto del comprobante.</div>
                                         <div id="preview-comprobante" class="mt-2 text-center d-none">
-                                            <img src="" class="img-thumbnail img-fluid" style="max-height: 200px;">
+                                            <img src="" class="img-thumbnail img-fluid d-none" style="max-height: 200px;">
+                                            <div class="pdf-preview alert alert-info py-2 d-none mb-0"><i class="bi bi-file-pdf fs-4 me-2"></i> <span class="file-name"></span></div>
                                         </div>
                                     </div>
 
@@ -118,14 +119,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <div class="col-md-6">
                                         <label for="recibo" class="form-label fw-bold">Foto del Recibo (Opcional)</label>
                                         <div class="input-group">
-                                            <input type="file" class="form-control" id="recibo" name="recibo" accept="image/*" capture="environment">
-                                            <label class="btn btn-outline-secondary" for="recibo" title="Tomar foto / Seleccionar imagen">
-                                                <i class="bi bi-camera-fill"></i>
+                                            <input type="file" class="form-control" id="recibo" name="recibo" accept="image/*,application/pdf,.heic,.heif,.webp">
+                                            <label class="btn btn-outline-secondary" for="recibo" title="Seleccionar de galería / Tomar foto">
+                                                <i class="bi bi-image"></i>
                                             </label>
                                         </div>
-                                        <div class="form-text small text-muted">Selecciona un archivo o toma una foto del recibo firmado/sellado.</div>
+                                        <div class="form-text small text-muted">Selecciona un archivo de tu galería o foto del recibo firmado/sellado.</div>
                                         <div id="preview-recibo" class="mt-2 text-center d-none">
-                                            <img src="" class="img-thumbnail img-fluid" style="max-height: 200px;">
+                                            <img src="" class="img-thumbnail img-fluid d-none" style="max-height: 200px;">
+                                            <div class="pdf-preview alert alert-info py-2 d-none mb-0"><i class="bi bi-file-pdf fs-4 me-2"></i> <span class="file-name"></span></div>
                                         </div>
                                     </div>
 
@@ -184,15 +186,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function mostrarPrevisualizacion(input, container) {
         const file = input.files[0];
+        const imgEl = container.querySelector('img');
+        const pdfEl = container.querySelector('.pdf-preview');
+        const pdfName = container.querySelector('.file-name');
+
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                container.querySelector('img').src = e.target.result;
-                container.classList.remove('d-none');
+            container.classList.remove('d-none');
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'pdf') {
+                if (imgEl) imgEl.classList.add('d-none');
+                if (pdfEl) {
+                    pdfEl.classList.remove('d-none');
+                    if (pdfName) pdfName.textContent = file.name;
+                }
+            } else {
+                if (pdfEl) pdfEl.classList.add('d-none');
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (imgEl) {
+                        imgEl.src = e.target.result;
+                        imgEl.classList.remove('d-none');
+                    }
+                }
+                reader.readAsDataURL(file);
             }
-            reader.readAsDataURL(file);
         } else {
             container.classList.add('d-none');
+            if (imgEl) imgEl.classList.add('d-none');
+            if (pdfEl) pdfEl.classList.add('d-none');
         }
     }
     // Cambiar símbolo de moneda dinámicamente
