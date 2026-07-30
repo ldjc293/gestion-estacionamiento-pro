@@ -267,7 +267,7 @@ require_once __DIR__ . '/../layouts/header.php';
 <div class="modal fade" id="modalRechazar" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="<?= url('operador/rechazar-pago') ?>" method="POST">
+            <form action="<?= url('operador/rechazar-pago') ?>" method="POST" class="no-auto-disable" onsubmit="setButtonLoading(this.querySelector('button[type=submit]'), true)">
                 <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                 <input type="hidden" name="pago_id" value="<?= $pago->id ?>">
 
@@ -311,6 +311,12 @@ function aprobarPagoConfirmado() {
     // Cerrar el modal
     var modal = bootstrap.Modal.getInstance(document.getElementById('modalAprobar'));
     modal.hide();
+
+    // Mostrar loader en el botón principal
+    const btnApprove = document.querySelector('button[data-bs-target="#modalAprobar"]');
+    if (btnApprove) {
+        setButtonLoading(btnApprove, true);
+    }
 
     // Enviar el formulario
     document.getElementById('approve-form').submit();
