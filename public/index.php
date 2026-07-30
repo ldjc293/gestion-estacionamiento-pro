@@ -54,6 +54,47 @@ $action = lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $action))))
 
 $params = array_slice($urlParts, 2);
 
+// Manejador para archivos estáticos subidos (/uploads/...)
+if ($controller === 'uploads') {
+    $relativePath = implode('/', $urlParts);
+    $filePath = PUBLIC_PATH . '/' . $relativePath;
+    if (!file_exists($filePath)) {
+        $filePath = ROOT_PATH . '/' . $relativePath;
+    }
+
+    if (file_exists($filePath) && is_file($filePath)) {
+        $realPath = realpath($filePath);
+        $publicReal = realpath(PUBLIC_PATH);
+        $rootReal = realpath(ROOT_PATH);
+
+        if ($realPath && ($publicReal && strpos($realPath, $publicReal) === 0 || $rootReal && strpos($realPath, $rootReal) === 0)) {
+            $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
+            $mimeTypes = [
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png'  => 'image/png',
+                'gif'  => 'image/gif',
+                'webp' => 'image/webp',
+                'svg'  => 'image/svg+xml',
+                'pdf'  => 'application/pdf'
+            ];
+
+            $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
+
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . filesize($realPath));
+            header('Content-Disposition: inline; filename="' . basename($realPath) . '"');
+            header('Cache-Control: public, max-age=86400');
+            readfile($realPath);
+            exit;
+        }
+    }
+
+    http_response_code(404);
+    echo "Archivo de comprobante no encontrado";
+    exit;
+}
+
 // Mapeo de controladores
 $controllerMap = [
     'auth' => 'AuthController',
