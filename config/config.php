@@ -316,6 +316,9 @@ define('TIPOS_NOTIFICACION', [
  */
 function url(string $path = ''): string
 {
+    if (strpos($path, 'data:image/') === 0 || strpos($path, 'data:application/pdf') === 0 || strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0) {
+        return $path;
+    }
     $fullUrl = APP_URL . '/' . ltrim($path, '/');
     if ((isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')) {
         $fullUrl = str_replace('http://', 'https://', $fullUrl);
