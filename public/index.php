@@ -25,11 +25,11 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Configuración de seguridad adicional
-header('X-Frame-Options: DENY');
+header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('X-XSS-Protection: 1; mode=block');
-// CSP Header para permitir jQuery y Bootstrap
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net;");
+// CSP Header para permitir jQuery, Bootstrap, imágenes y visores PDF
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data: blob: http: https:; frame-src 'self'; child-src 'self'; connect-src 'self' https://cdn.jsdelivr.net;");
 
 // Obtener la URL solicitada (Soporte para Apache/Nginx rewrite y servidor php -S)
 $url = isset($_GET['url']) ? trim($_GET['url'], '/') : '';
@@ -72,8 +72,33 @@ if ($controller === 'uploads') {
         }
     }
 
+    // Fallback de insensibilidad de mayúsculas/minúsculas para sistemas de archivos Linux (Render)
+    if (!$foundPath) {
+        $subDirs = [PUBLIC_PATH, ROOT_PATH . '/public', ROOT_PATH];
+        $targetFileName = strtolower(basename($relativePath));
+        $relativeDir = dirname($relativePath);
+
+        foreach ($subDirs as $baseDir) {
+            $searchDir = $baseDir . ($relativeDir !== '.' ? '/' . $relativeDir : '');
+            if (is_dir($searchDir)) {
+                $dirFiles = scandir($searchDir);
+                if ($dirFiles !== false) {
+                    foreach ($dirFiles as $df) {
+                        if (strtolower($df) === $targetFileName) {
+                            $candidate = $searchDir . '/' . $df;
+                            if (is_file($candidate)) {
+                                $foundPath = $candidate;
+                                break 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if ($foundPath) {
-        $realPath = realpath($foundPath);
+        $realPath = realpath($foundPath) ?: $foundPath;
         $publicReal = realpath(PUBLIC_PATH) ?: PUBLIC_PATH;
         $rootReal = realpath(ROOT_PATH) ?: ROOT_PATH;
 
@@ -81,7 +106,7 @@ if ($controller === 'uploads') {
         $normPublic = strtolower(str_replace('\\', '/', $publicReal));
         $normRoot = strtolower(str_replace('\\', '/', $rootReal));
 
-        if (strpos($normReal, $normPublic) === 0 || strpos($normReal, $normRoot) === 0) {
+        if (strpos($normReal, $normPublic) === 0 || strpos($normReal, $normRoot) === 0 || strpos($normReal, 'uploads') !== false) {
             $ext = strtolower(pathinfo($realPath, PATHINFO_EXTENSION));
             $mimeTypes = [
                 'jpg'  => 'image/jpeg',
@@ -90,7 +115,9 @@ if ($controller === 'uploads') {
                 'gif'  => 'image/gif',
                 'webp' => 'image/webp',
                 'svg'  => 'image/svg+xml',
-                'pdf'  => 'application/pdf'
+                'pdf'  => 'application/pdf',
+                'heic' => 'image/heic',
+                'heif' => 'image/heif'
             ];
 
             $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
@@ -99,6 +126,7 @@ if ($controller === 'uploads') {
                 ob_end_clean();
             }
 
+            header('Access-Control-Allow-Origin: *');
             header('Content-Type: ' . $mime);
             header('Content-Length: ' . filesize($realPath));
             header('Content-Disposition: inline; filename="' . basename($realPath) . '"');

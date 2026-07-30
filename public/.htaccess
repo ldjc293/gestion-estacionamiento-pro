@@ -5,7 +5,6 @@
 # Habilitar motor de reescritura
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /Gestion-estacionamiento-Final/public/
 
     # Redirigir todo a index.php excepto archivos/directorios existentes
     RewriteCond %{REQUEST_FILENAME} !-f
