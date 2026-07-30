@@ -531,6 +531,27 @@ class OperadorController
             $monedaPago = 'usd_efectivo';
         }
 
+        // Subida del comprobante (es requerido por la vista)
+        $comprobanteRuta = null;
+        if (isset($_FILES['comprobante']['error']) && ($_FILES['comprobante']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['comprobante']['error'] === UPLOAD_ERR_FORM_SIZE)) {
+            $_SESSION['error'] = 'El comprobante seleccionado supera el tamaño máximo de archivo permitido por el servidor.';
+            redirect($redirectUrl);
+            return;
+        }
+
+        if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $comprobanteRuta = $this->uploadComprobante($_FILES['comprobante'], $clienteId);
+            if (!$comprobanteRuta) {
+                $_SESSION['error'] = 'Error al subir el comprobante. Verifique que sea un archivo de imagen o PDF válido.';
+                redirect($redirectUrl);
+                return;
+            }
+        } else {
+            $_SESSION['error'] = 'El comprobante de pago es obligatorio';
+            redirect($redirectUrl);
+            return;
+        }
+
         // Registrar y aprobar automáticamente (pago presencial)
         try {
             $pagoId = Pago::registrar([
@@ -538,6 +559,8 @@ class OperadorController
                 'moneda_pago' => $monedaPago,
                 'fecha_pago' => $fechaPago,
                 'mensualidades_ids' => $mensualidadesSeleccionadas,
+                'comprobante_ruta' => $comprobanteRuta,
+                'notas' => !empty($referencia) ? 'Ref: ' . $referencia : null,
                 'registrado_por' => $usuario->id // Operador que registra
             ]);
 
@@ -552,7 +575,7 @@ class OperadorController
 
         } catch (Exception $e) {
             writeLog("Error al registrar pago presencial: " . $e->getMessage(), 'error');
-            $_SESSION['error'] = 'Error al registrar el pago';
+            $_SESSION['error'] = 'Error al registrar el pago: ' . $e->getMessage();
             redirect($redirectUrl);
         }
     }
@@ -2346,6 +2369,38 @@ class OperadorController
 
         @move_uploaded_file($tmpPath, $destPath);
         return 'data:image/jpeg;base64,' . base64_encode($fileData);
+    }
+
+    private function uploadComprobante(array $file, int $usuarioId): ?string
+    {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            writeLog("Error uploadComprobante (usuario $usuarioId): UPLOAD_ERR code " . ($file['error'] ?? 'missing'), 'error');
+            return null;
+        }
+
+        $uploadDir = COMPROBANTES_PATH . '/';
+
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
+        if (!in_array($extension, $allowed)) {
+            writeLog("Error uploadComprobante (usuario $usuarioId): Extensión '$extension' no permitida", 'error');
+            return null;
+        }
+
+        $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.' . ($extension === 'pdf' ? 'pdf' : 'jpg');
+        $rutaDestino = $uploadDir . $nombreArchivo;
+
+        $dataUri = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
+        if ($dataUri) {
+            return $dataUri;
+        }
+
+        writeLog("Error uploadComprobante (usuario $usuarioId): Falló procesamiento de archivo hacia $rutaDestino", 'error');
+        return null;
     }
 
     private function uploadGastoArchivo(array $file, string $prefix): ?string
