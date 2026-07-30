@@ -346,8 +346,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <label class="form-label fw-bold" for="comprobante">
                                         Comprobante de Pago *
                                     </label>
-                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept=".pdf,.jpg,.png" required>
-                                    <small class="text-muted">Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 5MB</small>
+                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp" required>
+                                    <small class="text-muted">Formatos permitidos: Imágenes (JPG, PNG, WEBP, HEIC) o PDF.</small>
                                 </div>
 
                                 <!-- Action Buttons -->

@@ -64,9 +64,10 @@ if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_lifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
 }
 
-// Tamaño máximo de uploads
-ini_set('upload_max_filesize', '5M');
-ini_set('post_max_size', '6M');
+// Tamaño máximo de uploads (25MB para permitir fotos de cámaras de teléfonos móviles y PDFs grandes)
+ini_set('upload_max_filesize', '25M');
+ini_set('post_max_size', '30M');
+ini_set('memory_limit', '256M');
 
 // ============================================================================
 // CONSTANTES DE APLICACIÓN

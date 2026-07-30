@@ -170,22 +170,89 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, false);
 
-    // Previsualizar comprobante
+    // Previsualizar y comprimir comprobante
     const inputComprobante = document.getElementById('comprobante');
     const previewCompContainer = document.getElementById('preview-comprobante');
     inputComprobante.addEventListener('change', function() {
-        mostrarPrevisualizacion(this, previewCompContainer);
+        comprimirYPrevisualizarImagen(this, previewCompContainer);
     });
 
-    // Previsualizar recibo
+    // Previsualizar y comprimir recibo
     const inputRecibo = document.getElementById('recibo');
     const previewRecContainer = document.getElementById('preview-recibo');
-    inputRecibo.addEventListener('change', function() {
-        mostrarPrevisualizacion(this, previewRecContainer);
-    });
+    if (inputRecibo) {
+        inputRecibo.addEventListener('change', function() {
+            comprimirYPrevisualizarImagen(this, previewRecContainer);
+        });
+    }
 
-    function mostrarPrevisualizacion(input, container) {
+    function comprimirYPrevisualizarImagen(input, container) {
         const file = input.files[0];
+        if (!file) {
+            mostrarPrevisualizacion(null, container);
+            return;
+        }
+
+        const ext = file.name.split('.').pop().toLowerCase();
+        
+        if (ext === 'pdf' || !file.type.startsWith('image/') || file.size < 1024 * 1024) {
+            mostrarPrevisualizacion(file, container);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_SIZE = 1920;
+
+                if (width > height) {
+                    if (width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    }
+                } else {
+                    if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob(function(blob) {
+                    if (blob) {
+                        const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+
+                        try {
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(compressedFile);
+                            input.files = dataTransfer.files;
+                        } catch (err) {
+                            console.warn("DataTransfer no soportado:", err);
+                        }
+
+                        mostrarPrevisualizacion(compressedFile, container);
+                    } else {
+                        mostrarPrevisualizacion(file, container);
+                    }
+                }, 'image/jpeg', 0.82);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function mostrarPrevisualizacion(file, container) {
         const imgEl = container.querySelector('img');
         const pdfEl = container.querySelector('.pdf-preview');
         const pdfName = container.querySelector('.file-name');

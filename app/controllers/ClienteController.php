@@ -231,8 +231,8 @@ class ClienteController
         if (isset($_FILES['comprobante']) && $_FILES['comprobante']['error'] !== UPLOAD_ERR_NO_FILE) {
             $validacion = ValidationHelper::validateFile(
                 $_FILES['comprobante'],
-                ['jpg', 'jpeg', 'png', 'pdf'],
-                5 * 1024 * 1024 // 5MB
+                ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'pdf'],
+                25 * 1024 * 1024 // 25MB
             );
 
             if (!$validacion['valid']) {
@@ -917,6 +917,11 @@ class ClienteController
      */
     private function uploadComprobante(array $file, int $usuarioId): ?string
     {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            writeLog("Error uploadComprobante (cliente $usuarioId): UPLOAD_ERR code " . ($file['error'] ?? 'missing'), 'error');
+            return null;
+        }
+
         $uploadDir = COMPROBANTES_PATH . '/';
 
         // Crear directorio si no existe
@@ -924,8 +929,13 @@ class ClienteController
             mkdir($uploadDir, 0755, true);
         }
 
-        // Generar nombre único
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
+        if (!in_array($extension, $allowed)) {
+            writeLog("Error uploadComprobante (cliente $usuarioId): Extensión '$extension' no permitida", 'error');
+            return null;
+        }
+
         $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.' . $extension;
         $rutaDestino = $uploadDir . $nombreArchivo;
 
@@ -933,6 +943,7 @@ class ClienteController
             return 'uploads/comprobantes/' . $nombreArchivo;
         }
 
+        writeLog("Error uploadComprobante (cliente $usuarioId): Falló move_uploaded_file hacia $rutaDestino", 'error');
         return null;
     }
 
