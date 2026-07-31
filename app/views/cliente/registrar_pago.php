@@ -306,7 +306,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">Método de Pago *</label>
-                                        <select class="form-select" name="metodo_pago" required>
+                                        <select class="form-select" name="metodo_pago" id="metodo_pago" required>
                                             <option value="">Seleccione...</option>
                                             <option value="transferencia">Transferencia Bancaria</option>
                                             <option value="pago_movil">Pago Móvil</option>
@@ -316,10 +316,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
 
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">Referencia</label>
+                                        <label class="form-label fw-bold" id="label-referencia">
+                                            Referencia <span id="req-referencia" class="text-danger d-none">*</span>
+                                        </label>
                                         <input type="text"
                                                class="form-control"
                                                name="referencia"
+                                               id="referencia"
                                                placeholder="Ej: 123456789">
                                     </div>
                                 </div>
@@ -343,10 +346,10 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                 <!-- File Upload -->
                                 <div class="mb-4">
-                                    <label class="form-label fw-bold" for="comprobante">
-                                        Comprobante de Pago *
+                                    <label class="form-label fw-bold" for="comprobante" id="label-comprobante">
+                                        Comprobante de Pago <span id="req-comprobante" class="text-danger d-none">*</span>
                                     </label>
-                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp" required>
+                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp">
                                     <small class="text-muted">Formatos permitidos: Imágenes (JPG, PNG, WEBP, HEIC) o PDF.</small>
                                 </div>
 
@@ -568,6 +571,7 @@ class RegistrarPagoCliente {
     init() {
         this.setupEventListeners();
         this.updateContador();
+        this.actualizarRequeridos();
         // Validar selección secuencial al cargar la página
         setTimeout(() => this.validarSeleccionSecuencial(), 100);
     }
@@ -578,6 +582,61 @@ class RegistrarPagoCliente {
         this.setupCurrencyConversion();
         this.setupFormValidation();
         this.setupSelectionButtons();
+        this.setupDynamicRequirements();
+    }
+
+    setupDynamicRequirements() {
+        const monedaSelect = document.getElementById('moneda');
+        const metodoSelect = document.getElementById('metodo_pago');
+
+        if (monedaSelect) {
+            monedaSelect.addEventListener('change', () => this.actualizarRequeridos());
+        }
+        if (metodoSelect) {
+            metodoSelect.addEventListener('change', () => this.actualizarRequeridos());
+        }
+        this.actualizarRequeridos();
+    }
+
+    actualizarRequeridos() {
+        const moneda = document.getElementById('moneda')?.value;
+        const metodoPago = document.getElementById('metodo_pago')?.value;
+        const referenciaInput = document.getElementById('referencia');
+        const reqReferencia = document.getElementById('req-referencia');
+        const comprobanteInput = document.getElementById('comprobante');
+        const reqComprobante = document.getElementById('req-comprobante');
+
+        const requiereReferencia = (metodoPago === 'transferencia' || metodoPago === 'pago_movil' || (moneda === 'Bs' && metodoPago !== 'efectivo' && metodoPago !== ''));
+        const requiereComprobante = (metodoPago === 'transferencia' || metodoPago === 'pago_movil');
+
+        if (referenciaInput) {
+            referenciaInput.required = requiereReferencia;
+            if (requiereReferencia) {
+                referenciaInput.placeholder = "Ej: 123456789 (Obligatorio)";
+            } else {
+                referenciaInput.placeholder = "Ej: 123456789 (Opcional)";
+            }
+        }
+
+        if (reqReferencia) {
+            if (requiereReferencia) {
+                reqReferencia.classList.remove('d-none');
+            } else {
+                reqReferencia.classList.add('d-none');
+            }
+        }
+
+        if (comprobanteInput) {
+            comprobanteInput.required = requiereComprobante;
+        }
+
+        if (reqComprobante) {
+            if (requiereComprobante) {
+                reqComprobante.classList.remove('d-none');
+            } else {
+                reqComprobante.classList.add('d-none');
+            }
+        }
     }
 
     setupTotalCalculation() {

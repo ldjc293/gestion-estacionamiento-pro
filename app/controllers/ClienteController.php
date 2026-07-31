@@ -217,13 +217,20 @@ class ClienteController
             }
         }
 
-        // Validar que se suba comprobante para métodos que lo requieren
+        // Validar que se suba comprobante y referencia para métodos que lo requieren
         $metodosConComprobante = ['transferencia', 'pago_movil'];
-        if (in_array($metodoPago, $metodosConComprobante) && 
-            (!isset($_FILES['comprobante']) || $_FILES['comprobante']['error'] === UPLOAD_ERR_NO_FILE)) {
-            $_SESSION['error'] = 'Debe subir el comprobante de pago para el método seleccionado';
-            redirect('cliente/registrar-pago');
-            return;
+        if (in_array($metodoPago, $metodosConComprobante)) {
+            if (empty($referencia)) {
+                $_SESSION['error'] = 'El número de referencia es obligatorio para el método de pago seleccionado.';
+                redirect('cliente/registrar-pago');
+                return;
+            }
+
+            if (!isset($_FILES['comprobante']) || $_FILES['comprobante']['error'] === UPLOAD_ERR_NO_FILE) {
+                $_SESSION['error'] = 'Debe subir el comprobante de pago para el método seleccionado';
+                redirect('cliente/registrar-pago');
+                return;
+            }
         }
 
         // Validar archivo de comprobante si fue subido
@@ -286,6 +293,7 @@ class ClienteController
                 'comprobante_ruta' => $rutaComprobante,
                 'mensualidades_ids' => $mensualidadesSeleccionadas,
                 'registrado_por' => $usuario->id,
+                'notas' => !empty($referencia) ? $referencia : null,
                 'estado_comprobante' => 'pendiente' // Siempre pendiente para revisión del operador
             ]);
 
@@ -915,31 +923,35 @@ class ClienteController
     /**
      * Subir comprobante de pago
      */
-    private function processImageAndSave(string $tmpPath, string $originalName, string $destPath): ?string
+    private function processImageAndSave(string $tmpPath, string $originalName, string $destPath): bool
     {
         $fileData = @file_get_contents($tmpPath);
         if (!$fileData) {
-            return null;
+            return false;
         }
 
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
         if ($ext === 'pdf') {
-            @move_uploaded_file($tmpPath, $destPath);
-            return 'data:application/pdf;base64,' . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         if (!function_exists('imagecreatefromstring')) {
-            @move_uploaded_file($tmpPath, $destPath);
-            $mime = ($ext === 'png') ? 'image/png' : (($ext === 'webp') ? 'image/webp' : 'image/jpeg');
-            return "data:{$mime};base64," . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         $image = @imagecreatefromstring($fileData);
         if (!$image) {
-            @move_uploaded_file($tmpPath, $destPath);
-            $mime = ($ext === 'png') ? 'image/png' : (($ext === 'webp') ? 'image/webp' : 'image/jpeg');
-            return "data:{$mime};base64," . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         if (function_exists('exif_read_data')) {
@@ -984,11 +996,13 @@ class ClienteController
 
         if ($compressedBytes) {
             @file_put_contents($destPath, $compressedBytes);
-            return 'data:image/jpeg;base64,' . base64_encode($compressedBytes);
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
-        @move_uploaded_file($tmpPath, $destPath);
-        return 'data:image/jpeg;base64,' . base64_encode($fileData);
+        if (!@move_uploaded_file($tmpPath, $destPath)) {
+            @file_put_contents($destPath, $fileData);
+        }
+        return file_exists($destPath) && filesize($destPath) > 0;
     }
 
     private function uploadComprobante(array $file, int $usuarioId): ?string
@@ -1014,9 +1028,9 @@ class ClienteController
         $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.' . ($extension === 'pdf' ? 'pdf' : 'jpg');
         $rutaDestino = $uploadDir . $nombreArchivo;
 
-        $dataUri = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
-        if ($dataUri) {
-            return $dataUri;
+        $exito = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
+        if ($exito) {
+            return 'uploads/comprobantes/' . $nombreArchivo;
         }
 
         writeLog("Error uploadComprobante (cliente $usuarioId): Falló procesamiento de archivo hacia $rutaDestino", 'error');

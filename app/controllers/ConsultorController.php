@@ -1461,31 +1461,35 @@ class ConsultorController
         redirect('consultor/perfil');
     }
 
-    private function processImageAndSave(string $tmpPath, string $originalName, string $destPath): ?string
+    private function processImageAndSave(string $tmpPath, string $originalName, string $destPath): bool
     {
         $fileData = @file_get_contents($tmpPath);
         if (!$fileData) {
-            return null;
+            return false;
         }
 
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
         if ($ext === 'pdf') {
-            @move_uploaded_file($tmpPath, $destPath);
-            return 'data:application/pdf;base64,' . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         if (!function_exists('imagecreatefromstring')) {
-            @move_uploaded_file($tmpPath, $destPath);
-            $mime = ($ext === 'png') ? 'image/png' : (($ext === 'webp') ? 'image/webp' : 'image/jpeg');
-            return "data:{$mime};base64," . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         $image = @imagecreatefromstring($fileData);
         if (!$image) {
-            @move_uploaded_file($tmpPath, $destPath);
-            $mime = ($ext === 'png') ? 'image/png' : (($ext === 'webp') ? 'image/webp' : 'image/jpeg');
-            return "data:{$mime};base64," . base64_encode($fileData);
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
         if (function_exists('exif_read_data')) {
@@ -1530,11 +1534,13 @@ class ConsultorController
 
         if ($compressedBytes) {
             @file_put_contents($destPath, $compressedBytes);
-            return 'data:image/jpeg;base64,' . base64_encode($compressedBytes);
+            return file_exists($destPath) && filesize($destPath) > 0;
         }
 
-        @move_uploaded_file($tmpPath, $destPath);
-        return 'data:image/jpeg;base64,' . base64_encode($fileData);
+        if (!@move_uploaded_file($tmpPath, $destPath)) {
+            @file_put_contents($destPath, $fileData);
+        }
+        return file_exists($destPath) && filesize($destPath) > 0;
     }
 
     private function uploadGastoArchivo(array $file, string $prefix): ?string
@@ -1559,9 +1565,9 @@ class ConsultorController
         $nombreArchivo = $prefix . '_' . uniqid() . '.' . ($ext === 'pdf' ? 'pdf' : 'jpg');
         $rutaDestino = $uploadDir . $nombreArchivo;
 
-        $dataUri = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
-        if ($dataUri) {
-            return $dataUri;
+        $exito = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
+        if ($exito) {
+            return 'uploads/gastos/' . $nombreArchivo;
         }
 
         writeLog("Error uploadGastoArchivo ({$prefix}): Falló procesamiento de archivo hacia $rutaDestino", 'error');
