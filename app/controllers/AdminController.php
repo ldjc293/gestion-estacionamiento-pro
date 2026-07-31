@@ -586,7 +586,9 @@ class AdminController
             $usuario->desactivar();
 
             // 2. Comprobar si tiene registros relacionales (pagos, gastos, mensualidades)
-            $sqlCheckPagos = "SELECT COUNT(*) as total FROM pagos WHERE usuario_id = ?";
+            $sqlCheckPagos = "SELECT COUNT(*) as total FROM pagos p
+                              JOIN apartamento_usuario au ON au.id = p.apartamento_usuario_id
+                              WHERE au.usuario_id = ?";
             $resPagos = Database::fetchOne($sqlCheckPagos, [$usuarioId]);
 
             $sqlCheckGastos = "SELECT COUNT(*) as total FROM gastos WHERE registrado_por = ?";
