@@ -1541,13 +1541,22 @@ class ConsultorController
 
         if ($compressedBytes) {
             @file_put_contents($destPath, $compressedBytes);
-            return file_exists($destPath) && filesize($destPath) > 0;
+        } else {
+            if (!@move_uploaded_file($tmpPath, $destPath)) {
+                @file_put_contents($destPath, $fileData);
+            }
         }
 
-        if (!@move_uploaded_file($tmpPath, $destPath)) {
-            @file_put_contents($destPath, $fileData);
+        $success = file_exists($destPath) && filesize($destPath) > 0;
+        if ($success) {
+            $altDest = str_replace(PUBLIC_PATH, ROOT_PATH, $destPath);
+            if ($altDest !== $destPath) {
+                $altDir = dirname($altDest);
+                if (!is_dir($altDir)) @mkdir($altDir, 0777, true);
+                @copy($destPath, $altDest);
+            }
         }
-        return file_exists($destPath) && filesize($destPath) > 0;
+        return $success;
     }
 
     private function uploadGastoArchivo(array $file, string $prefix): ?string

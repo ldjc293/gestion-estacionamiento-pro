@@ -11,6 +11,28 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTT
     $_SERVER['HTTPS'] = 'on';
 }
 
+// Soporte nativo de archivos estáticos para PHP CLI Server (Render, desarrollo local)
+if (php_sapi_name() === 'cli-server') {
+    $urlPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '';
+    if ($urlPath !== '/' && !empty($urlPath)) {
+        $filePath = __DIR__ . $urlPath;
+        if (is_file($filePath)) {
+            return false;
+        }
+        $rootFilePath = __DIR__ . '/..' . $urlPath;
+        if (is_file($rootFilePath)) {
+            $ext = strtolower(pathinfo($rootFilePath, PATHINFO_EXTENSION));
+            $mimeTypes = [
+                'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+                'gif' => 'image/gif', 'webp' => 'image/webp', 'pdf' => 'application/pdf'
+            ];
+            header('Content-Type: ' . ($mimeTypes[$ext] ?? 'application/octet-stream'));
+            readfile($rootFilePath);
+            exit;
+        }
+    }
+}
+
 // Cargar configuración
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
