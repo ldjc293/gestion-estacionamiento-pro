@@ -139,4 +139,95 @@ class ApiController
             echo json_encode(['success' => false, 'message' => 'Error al obtener controles disponibles']);
         }
     }
+
+    /**
+     * Obtener detalles completos de un pago (AJAX)
+     */
+    public function getDetallePago(): void
+    {
+        header('Content-Type: application/json');
+
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (empty($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'message' => 'No autorizado']);
+            return;
+        }
+
+        $pagoId = (int)($_GET['id'] ?? $_GET['pago_id'] ?? 0);
+        if ($pagoId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID de pago inválido']);
+            return;
+        }
+
+        $sql = "SELECT 
+                    p.*,
+                    u.nombre_completo as cliente_nombre,
+                    u.cedula as cliente_cedula,
+                    u.email as cliente_email,
+                    CONCAT('Bloque ', a.bloque, ' - Escalera ', a.escalera, ' - Apto ', a.numero_apartamento) as apartamento,
+                    t.tasa_usd_bs as tasa_cambio_valor,
+                    reg.nombre_completo as registrado_por_nombre,
+                    aprob.nombre_completo as aprobado_por_nombre
+                FROM pagos p
+                JOIN apartamento_usuario au ON au.id = p.apartamento_usuario_id
+                JOIN usuarios u ON u.id = au.usuario_id
+                JOIN apartamentos a ON a.id = au.apartamento_id
+                LEFT JOIN tasa_cambio_bcv t ON t.id = p.tasa_cambio_id
+                LEFT JOIN usuarios reg ON reg.id = p.registrado_por
+                LEFT JOIN usuarios aprob ON aprob.id = p.aprobado_por
+                WHERE p.id = ?";
+
+        $pago = Database::fetchOne($sql, [$pagoId]);
+
+        if (!$pago) {
+            echo json_encode(['success' => false, 'message' => 'Pago no encontrado']);
+            return;
+        }
+
+        // Obtener mensualidades asociadas
+        $sqlMens = "SELECT m.mes, m.anio, m.monto_usd, pm.monto_aplicado_usd
+                    FROM mensualidades m
+                    JOIN pago_mensualidad pm ON pm.mensualidad_id = m.id
+                    WHERE pm.pago_id = ?
+                    ORDER BY m.anio ASC, m.mes ASC";
+        $mensualidades = Database::fetchAll($sqlMens, [$pagoId]);
+
+        $mesesNombres = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+        ];
+
+        $mensualidadesFormateadas = array_map(function($m) use ($mesesNombres) {
+            $nombreMes = $mesesNombres[(int)$m['mes']] ?? $m['mes'];
+            return [
+                'mes' => $m['mes'],
+                'anio' => $m['anio'],
+                'texto' => $nombreMes . ' ' . $m['anio'],
+                'monto_usd' => (float)$m['monto_usd'],
+                'monto_aplicado_usd' => (float)$m['monto_aplicado_usd']
+            ];
+        }, $mensualidades);
+
+        // Nombres legibles para metodo de pago
+        $metodos = [
+            'usd_efectivo' => 'Efectivo Divisas ($)',
+            'bs_transferencia' => 'Transferencia Bs.',
+            'bs_pago_movil' => 'Pago Móvil Bs.',
+            'bs_efectivo' => 'Efectivo Bs.'
+        ];
+
+        $pago['metodo_pago_label'] = $metodos[$pago['moneda_pago']] ?? ucfirst($pago['moneda_pago'] ?? 'N/A');
+        $pago['mensualidades'] = $mensualidadesFormateadas;
+        $pago['fecha_pago_formateada'] = !empty($pago['fecha_pago']) ? date('d/m/Y H:i', strtotime($pago['fecha_pago'])) : 'N/A';
+        $pago['fecha_aprobacion_formateada'] = !empty($pago['fecha_aprobacion']) ? date('d/m/Y H:i', strtotime($pago['fecha_aprobacion'])) : null;
+
+        echo json_encode([
+            'success' => true,
+            'pago' => $pago
+        ]);
+    }
 }

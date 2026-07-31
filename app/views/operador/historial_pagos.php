@@ -245,25 +245,151 @@ function verDetalles(pagoId) {
     const contenido = document.getElementById('detalles-contenido');
 
     contenido.innerHTML = `
-        <div class="text-center">
-            <div class="spinner-border" role="status">
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Cargando...</span>
             </div>
-            <p class="mt-2">Cargando detalles...</p>
+            <p class="mt-2 text-muted">Cargando detalles de la operación...</p>
         </div>
     `;
 
     modal.show();
 
-    setTimeout(() => {
-        contenido.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>ID del Pago:</strong> #${pagoId}
-            </div>
-            <p>Para ver los detalles completos, contacta al administrador del sistema.</p>
-        `;
-    }, 500);
+    fetch('<?= url('api/get-detalle-pago') ?>?id=' + pagoId)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success || !data.pago) {
+                contenido.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        ${data.message || 'No se pudieron cargar los detalles del pago.'}
+                    </div>
+                `;
+                return;
+            }
+
+            const p = data.pago;
+            
+            let estadoBadge = '<span class="badge bg-secondary">Desconocido</span>';
+            if (p.estado_comprobante === 'aprobado' || p.estado_comprobante === 'no_aplica') {
+                estadoBadge = '<span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i> Aprobado</span>';
+            } else if (p.estado_comprobante === 'pendiente') {
+                estadoBadge = '<span class="badge bg-warning text-dark fs-6"><i class="bi bi-hourglass-split me-1"></i> Pendiente</span>';
+            } else if (p.estado_comprobante === 'rechazado') {
+                estadoBadge = '<span class="badge bg-danger fs-6"><i class="bi bi-x-circle me-1"></i> Rechazado</span>';
+            }
+
+            let mesesHtml = '<span class="text-muted">No especificado</span>';
+            if (p.mensualidades && p.mensualidades.length > 0) {
+                mesesHtml = '<div class="d-flex flex-wrap gap-1">';
+                p.mensualidades.forEach(m => {
+                    mesesHtml += `<span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-calendar-check text-success me-1"></i>${m.texto} ($${parseFloat(m.monto_aplicado_usd).toFixed(2)})</span>`;
+                });
+                mesesHtml += '</div>';
+            }
+
+            let comprobanteBtnHtml = '';
+            if (p.comprobante_ruta) {
+                const appUrl = '<?= url('') ?>'.replace(/\/$/, '');
+                const rutaClean = p.comprobante_ruta.startsWith('/') ? p.comprobante_ruta : '/' + p.comprobante_ruta;
+                const fullUrl = appUrl + rutaClean;
+                comprobanteBtnHtml = `
+                    <div class="mt-3 pt-3 border-top">
+                        <strong>Comprobante adjunto:</strong>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="verComprobante('${fullUrl}')">
+                                <i class="bi bi-file-earmark-image me-1"></i> Ver / Previsualizar Comprobante
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            let motivoRechazoHtml = '';
+            if (p.estado_comprobante === 'rechazado' && p.motivo_rechazo) {
+                motivoRechazoHtml = `
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <strong><i class="bi bi-exclamation-triangle me-1"></i> Motivo del rechazo:</strong>
+                        <p class="mb-0 mt-1">${p.motivo_rechazo}</p>
+                    </div>
+                `;
+            }
+
+            contenido.innerHTML = `
+                <div class="card border-0 shadow-sm mb-3 bg-light">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <h6 class="text-primary mb-0 fw-bold">
+                                    <i class="bi bi-receipt me-1"></i> Recibo: ${p.numero_recibo ? p.numero_recibo : '#' + String(p.id).padStart(5, '0')}
+                                </h6>
+                                <small class="text-muted">ID Transacción: #${p.id}</small>
+                            </div>
+                            <div>${estadoBadge}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100 bg-white">
+                            <h6 class="fw-bold border-bottom pb-2 mb-2 text-secondary">
+                                <i class="bi bi-person me-1"></i> Datos del Cliente
+                            </h6>
+                            <p class="mb-1"><strong>Nombre:</strong> ${p.cliente_nombre || 'N/A'}</p>
+                            <p class="mb-1"><strong>Cédula:</strong> ${p.cliente_cedula || 'N/A'}</p>
+                            <p class="mb-0"><strong>Ubicación:</strong> ${p.apartamento || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100 bg-white">
+                            <h6 class="fw-bold border-bottom pb-2 mb-2 text-secondary">
+                                <i class="bi bi-cash-stack me-1"></i> Montos y Método
+                            </h6>
+                            <p class="mb-1"><strong>Método:</strong> ${p.metodo_pago_label}</p>
+                            <p class="mb-1"><strong>Monto en USD:</strong> <span class="text-success fw-bold">$${parseFloat(p.monto_usd).toFixed(2)}</span></p>
+                            <p class="mb-1"><strong>Monto en Bs:</strong> <span class="fw-bold">${parseFloat(p.monto_bs || 0).toLocaleString('es-VE', {minimumFractionDigits:2})} Bs.</span></p>
+                            ${p.tasa_cambio_valor ? `<p class="mb-0 text-muted small"><strong>Tasa BCV:</strong> ${parseFloat(p.tasa_cambio_valor).toFixed(2)} Bs/$</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded p-3 mt-3 bg-white">
+                    <h6 class="fw-bold border-bottom pb-2 mb-2 text-secondary">
+                        <i class="bi bi-info-circle me-1"></i> Detalles Operativos
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Fecha de Pago:</strong> ${p.fecha_pago_formateada}</p>
+                            <p class="mb-1"><strong>Referencia / Notas:</strong> ${p.notas ? `<code>${p.notas}</code>` : '<span class="text-muted">Sin referencia</span>'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Registrado por:</strong> ${p.registrado_por_nombre || 'Cliente'}</p>
+                            ${p.aprobado_por_nombre ? `<p class="mb-1"><strong>Procesado por:</strong> ${p.aprobado_por_nombre} (${p.fecha_aprobacion_formateada || ''})</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border rounded p-3 mt-3 bg-white">
+                    <h6 class="fw-bold border-bottom pb-2 mb-2 text-secondary">
+                        <i class="bi bi-calendar-range me-1"></i> Meses Abonados / Pagados
+                    </h6>
+                    ${mesesHtml}
+                </div>
+
+                ${motivoRechazoHtml}
+                ${comprobanteBtnHtml}
+            `;
+        })
+        .catch(err => {
+            console.error('Error al obtener detalles del pago:', err);
+            contenido.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Ocurrió un error al intentar consultar la información del pago.
+                </div>
+            `;
+        });
 }
 
 function verComprobante(url) {

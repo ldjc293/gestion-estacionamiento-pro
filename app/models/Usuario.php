@@ -656,8 +656,7 @@ class Usuario
         $sql = "SELECT u.* FROM usuarios u
                 LEFT JOIN apartamento_usuario au ON au.usuario_id = u.id AND au.activo = TRUE
                 LEFT JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE u.rol = 'cliente'
-                AND u.activo = TRUE
+                WHERE u.activo = TRUE
                 AND (
                     u.email = ?
                     OR u.nombre_completo ILIKE ?
@@ -696,8 +695,7 @@ class Usuario
                 FROM usuarios u
                 LEFT JOIN apartamento_usuario au ON au.usuario_id = u.id AND au.activo = TRUE
                 LEFT JOIN apartamentos a ON a.id = au.apartamento_id
-                WHERE u.rol = 'cliente'
-                AND u.activo = TRUE
+                WHERE u.activo = TRUE
                 AND (
                     " . $normalize("u.email") . " LIKE " . $normalize("?") . "
                     OR " . $normalize("u.nombre_completo") . " LIKE " . $normalize("?") . "
@@ -728,7 +726,7 @@ class Usuario
      */
     public static function getClientesConControles(array $filters = []): array
     {
-        $sql = "SELECT u.id, u.nombre_completo, u.email, u.cedula, u.activo,
+        $sql = "SELECT u.id, u.nombre_completo, u.email, u.cedula, u.activo, u.rol,
                        CONCAT(a.bloque, '-', a.escalera, '-', a.numero_apartamento) as apartamento,
                        a.bloque,
                        COUNT(c.id) as total_controles,
@@ -741,8 +739,7 @@ class Usuario
                 LEFT JOIN apartamento_usuario au ON au.usuario_id = u.id AND au.activo = TRUE
                 LEFT JOIN apartamentos a ON a.id = au.apartamento_id
                 LEFT JOIN controles_estacionamiento c ON c.apartamento_usuario_id = au.id
-                WHERE u.rol = 'cliente'
-                AND u.activo = TRUE";
+                WHERE u.activo = TRUE";
 
         $params = [];
 

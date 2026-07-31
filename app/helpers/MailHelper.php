@@ -22,6 +22,7 @@ class MailHelper
             
             // Server settings
             $mail->isSMTP();
+            $mail->Timeout = 5;
             $mail->Host = MAIL_HOST;
             $mail->Port = MAIL_PORT;
             $mail->SMTPSecure = MAIL_ENCRYPTION;
@@ -64,6 +65,7 @@ class MailHelper
             
             // Server settings
             $mail->isSMTP();
+            $mail->Timeout = 5;
             $mail->Host = MAIL_HOST;
             $mail->Port = MAIL_PORT;
             $mail->SMTPSecure = MAIL_ENCRYPTION;
@@ -108,6 +110,7 @@ class MailHelper
             
             // Server settings
             $mail->isSMTP();
+            $mail->Timeout = 5;
             $mail->Host = MAIL_HOST;
             $mail->Port = MAIL_PORT;
             $mail->SMTPSecure = MAIL_ENCRYPTION;
@@ -152,6 +155,7 @@ class MailHelper
             
             // Server settings
             $mail->isSMTP();
+            $mail->Timeout = 5;
             $mail->Host = MAIL_HOST;
             $mail->Port = MAIL_PORT;
             $mail->SMTPSecure = MAIL_ENCRYPTION;

@@ -245,10 +245,14 @@ class Pago
             // Generar recibo PDF
             $this->generarRecibo();
 
-            // Enviar notificación al cliente
-            $this->enviarNotificacionAprobacion();
-
             Database::commit();
+
+            // Enviar notificación al cliente (fuera de la transacción para evitar bloqueos)
+            try {
+                $this->enviarNotificacionAprobacion();
+            } catch (Exception $eMail) {
+                writeLog("Aviso: No se pudo enviar email de aprobación: " . $eMail->getMessage(), 'warning');
+            }
 
             writeLog("Pago aprobado: {$this->numero_recibo}", 'info');
 
@@ -294,13 +298,20 @@ class Pago
 
                 // Recalcular vencidas para que tomen el estado 'vencido' si pasaron la fecha de vencimiento
                 Mensualidad::marcarVencidas();
-
-                // Enviar notificación de rechazo
-                $this->enviarNotificacionRechazo($motivo);
-                writeLog("Pago rechazado: {$this->numero_recibo} - Motivo: $motivo", 'info');
             }
 
             Database::commit();
+
+            if ($result) {
+                // Enviar notificación de rechazo (fuera de la transacción para evitar bloqueos)
+                try {
+                    $this->enviarNotificacionRechazo($motivo);
+                } catch (Exception $eMail) {
+                    writeLog("Aviso: No se pudo enviar email de rechazo: " . $eMail->getMessage(), 'warning');
+                }
+                writeLog("Pago rechazado: {$this->numero_recibo} - Motivo: $motivo", 'info');
+            }
+
             return $result;
 
         } catch (Exception $e) {

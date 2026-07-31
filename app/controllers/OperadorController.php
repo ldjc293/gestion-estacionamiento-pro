@@ -938,32 +938,59 @@ class OperadorController
             Database::execute($sqlSet, [$controlId, $solicitudId]);
         }
 
+        $isAjax = $this->isAjax() || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
         if ($solicitud->aprobar($usuario->id, $observaciones)) {
-            echo json_encode(['success' => true, 'message' => 'Solicitud aprobada y procesada exitosamente']);
+            $msg = 'Solicitud aprobada y procesada exitosamente';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => $msg]);
+            } else {
+                $_SESSION['success'] = $msg;
+                redirect('operador/solicitudes');
+            }
         } else {
-            echo json_encode(['success' => false, 'message' => 'Error al aprobar la solicitud. Verifique que los datos del control sean correctos.']);
+            $msg = 'Error al aprobar la solicitud. Verifique que los datos del control sean correctos.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+            } else {
+                $_SESSION['error'] = $msg;
+                redirect('operador/solicitudes');
+            }
         }
         exit;
     }
 
     /**
-     * Rechazar solicitud (AJAX/JSON)
+     * Rechazar solicitud (AJAX/JSON o POST normal)
      */
     public function rechazarSolicitud(): void
     {
         $usuario = $this->checkAuth();
+        $isAjax = $this->isAjax() || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
         if (!$usuario) {
-            echo json_encode(['success' => false, 'message' => 'No autorizado']);
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'No autorizado']);
+            } else {
+                redirect('auth/login');
+            }
             exit;
         }
-
-        header('Content-Type: application/json');
 
         $solicitudId = (int)($_POST['solicitud_id'] ?? 0);
         $motivo = trim($_POST['motivo'] ?? $_POST['observaciones'] ?? '');
 
         if ($solicitudId <= 0) {
-            echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'ID de solicitud inválido']);
+            } else {
+                $_SESSION['error'] = 'ID de solicitud inválido';
+                redirect('operador/solicitudes');
+            }
             exit;
         }
 
@@ -971,14 +998,34 @@ class OperadorController
         $solicitud = SolicitudCambio::findById($solicitudId);
 
         if (!$solicitud) {
-            echo json_encode(['success' => false, 'message' => 'Solicitud no encontrada']);
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => 'Solicitud no encontrada']);
+            } else {
+                $_SESSION['error'] = 'Solicitud no encontrada';
+                redirect('operador/solicitudes');
+            }
             exit;
         }
 
         if ($solicitud->rechazar($usuario->id, $motivo)) {
-            echo json_encode(['success' => true, 'message' => 'Solicitud rechazada exitosamente']);
+            $msg = 'Solicitud rechazada exitosamente';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => $msg]);
+            } else {
+                $_SESSION['success'] = $msg;
+                redirect('operador/solicitudes');
+            }
         } else {
-            echo json_encode(['success' => false, 'message' => 'Error al rechazar la solicitud']);
+            $msg = 'Error al rechazar la solicitud';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $msg]);
+            } else {
+                $_SESSION['error'] = $msg;
+                redirect('operador/solicitudes');
+            }
         }
         exit;
     }
