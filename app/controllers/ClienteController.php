@@ -304,7 +304,7 @@ class ClienteController
 
         } catch (Exception $e) {
             writeLog("Error al registrar pago: " . $e->getMessage(), 'error');
-            $_SESSION['error'] = 'Error al registrar el pago. Intente nuevamente';
+            $_SESSION['error'] = 'Error al registrar el pago: ' . $e->getMessage();
             redirect('cliente/registrar-pago');
         }
     }

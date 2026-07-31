@@ -143,7 +143,7 @@ class Pago
                 $data['comprobante_ruta'] ?? null,
                 $estadoComprobante,
                 $data['registrado_por'],
-                $data['es_reconexion'] ?? false,
+                !empty($data['es_reconexion']) ? true : false,
                 $data['monto_reconexion_usd'] ?? null,
                 $data['notas'] ?? null
             ];
@@ -152,7 +152,7 @@ class Pago
 
             // Asociar pago con mensualidades
             if (isset($data['mensualidades_ids'])) {
-                self::asociarMensualidades($pagoId, $data['mensualidades_ids'], $montoCalculadoUSD);
+                self::asociarMensualidades($pagoId, $data['mensualidades_ids'], $montoCalculadoUSD, $estadoComprobante);
             }
 
             Database::commit();
@@ -174,8 +174,9 @@ class Pago
      * @param int $pagoId ID del pago
      * @param array $mensualidadesIds IDs de mensualidades
      * @param float $montoTotal Monto total del pago
+     * @param string $estadoComprobante Estado del comprobante
      */
-    private static function asociarMensualidades(int $pagoId, array $mensualidadesIds, float $montoTotal): void
+    private static function asociarMensualidades(int $pagoId, array $mensualidadesIds, float $montoTotal, string $estadoComprobante = 'no_aplica'): void
     {
         $montoRestante = $montoTotal;
 
@@ -194,8 +195,8 @@ class Pago
                     VALUES (?, ?, ?)";
             Database::execute($sql, [$pagoId, $mensualidadId, $montoAplicado]);
 
-            // Marcar mensualidad como pagada si se pagó completa
-            if ($montoAplicado >= $mensualidad->monto_usd) {
+            // Solo marcar como pagada si el pago ya fue aprobado o no requiere revisión (ej. presencial)
+            if (in_array($estadoComprobante, ['aprobado', 'no_aplica']) && $montoAplicado >= $mensualidad->monto_usd) {
                 $mensualidad->marcarComoPagada();
             }
 
@@ -474,15 +475,16 @@ class Pago
      */
     private static function generarNumeroRecibo(): string
     {
-        $sql = "SELECT MAX(CAST(SUBSTRING(numero_recibo, 5) AS INTEGER)) as ultimo
-                FROM pagos
-                WHERE numero_recibo LIKE 'EST-%'";
-
+        $sql = "SELECT numero_recibo FROM pagos WHERE numero_recibo LIKE 'EST-%' ORDER BY id DESC LIMIT 1";
         $result = Database::fetchOne($sql);
-        $ultimo = $result['ultimo'] ?? 0;
-        $siguiente = $ultimo + 1;
 
-        return generateReciboNumber($siguiente);
+        $ultimoNum = 0;
+        if ($result && !empty($result['numero_recibo'])) {
+            $numPart = preg_replace('/[^0-9]/', '', $result['numero_recibo']);
+            $ultimoNum = intval($numPart);
+        }
+
+        return generateReciboNumber($ultimoNum + 1);
     }
 
     /**
