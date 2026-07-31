@@ -11,6 +11,7 @@ require_once __DIR__ . '/../models/Mensualidad.php';
 require_once __DIR__ . '/../models/Control.php';
 require_once __DIR__ . '/../models/SolicitudCambio.php';
 require_once __DIR__ . '/../helpers/ValidationHelper.php';
+require_once __DIR__ . '/../helpers/MailHelper.php';
 
 class OperadorController
 {
