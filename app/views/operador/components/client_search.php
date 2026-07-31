@@ -7,7 +7,7 @@
     <p class="text-muted small">Ingresa el nombre, email, cédula o bloque del cliente para continuar</p>
 </div>
 
-<form method="GET" class="mb-4" id="searchForm">
+<form action="<?= url('operador/registrar-pago-presencial') ?>" method="GET" class="mb-4" id="searchForm">
     <div class="row justify-content-center">
         <div class="col-md-10 col-lg-8">
             <div class="input-group input-group-lg shadow-sm">
@@ -59,7 +59,7 @@
                 </div>
                 <div class="list-group list-group-flush text-start">
                     <?php foreach ($resultadosBusqueda as $res): ?>
-                        <a href="?buscar=<?= urlencode($res['nombre_completo']) ?>&cliente_id=<?= $res['id'] ?><?= isset($_GET['modo']) ? '&modo=' . urlencode($_GET['modo']) : '' ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
+                        <a href="<?= url('operador/registrar-pago-presencial') ?>?buscar=<?= urlencode($res['nombre_completo']) ?>&cliente_id=<?= $res['id'] ?><?= isset($_GET['modo']) ? '&modo=' . urlencode($_GET['modo']) : '' ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
                             <div>
                                 <strong class="text-primary fs-6"><?= htmlspecialchars($res['nombre_completo']) ?></strong>
                                 <div class="text-muted small mt-1">
