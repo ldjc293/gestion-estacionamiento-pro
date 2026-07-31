@@ -872,27 +872,59 @@ class Mensualidad
                 throw new Exception("El mes de inicio no puede ser posterior al mes actual");
             }
 
+            // PASO 1: Eliminar mensualidades SIN pagos aprobados en el rango a corregir.
+            // Esto permite reemplazar mensualidades erróneas (montos viejos, meses fuera de orden, etc.)
+            $mensualidadesEliminadas = 0;
+            $cursorTime = $fechaInicioTimestamp;
+            while ($cursorTime <= $fechaActualTimestamp) {
+                $mes  = (int)date('n', $cursorTime);
+                $anio = (int)date('Y', $cursorTime);
+
+                // Solo eliminar si NO tiene pagos aprobados
+                $sqlBuscar = "SELECT m.id, m.estado FROM mensualidades m
+                              WHERE m.apartamento_usuario_id = ? AND m.anio = ? AND m.mes = ?";
+                $mensualidad = Database::fetchOne($sqlBuscar, [$aptUserId, $anio, $mes]);
+
+                if ($mensualidad) {
+                    $mId = (int)$mensualidad['id'];
+                    $sqlPago = "SELECT 1 FROM pago_mensualidad pm
+                                JOIN pagos p ON p.id = pm.pago_id
+                                WHERE pm.mensualidad_id = ?
+                                  AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                                LIMIT 1";
+                    $tienePagoAprobado = Database::fetchOne($sqlPago, [$mId]);
+
+                    if (!$tienePagoAprobado) {
+                        Database::execute("DELETE FROM pago_mensualidad WHERE mensualidad_id = ?", [$mId]);
+                        Database::execute("DELETE FROM mensualidades WHERE id = ?", [$mId]);
+                        $mensualidadesEliminadas++;
+                    }
+                }
+
+                $cursorTime = strtotime('+1 month', $cursorTime);
+            }
+
+            // PASO 2: Recrear todas las mensualidades en el rango (con tarifa y montos actualizados)
             $mensualidadesGeneradas = 0;
             $cursorTime = $fechaInicioTimestamp;
 
             while ($cursorTime <= $fechaActualTimestamp) {
-                $mes = (int)date('n', $cursorTime);
+                $mes  = (int)date('n', $cursorTime);
                 $anio = (int)date('Y', $cursorTime);
 
-                // Verificar si ya existe la mensualidad para este mes/año
-                $sqlExiste = "SELECT id FROM mensualidades 
+                // Verificar si ya existe (protégida porque tenía pago aprobado)
+                $sqlExiste = "SELECT id FROM mensualidades
                               WHERE apartamento_usuario_id = ? AND anio = ? AND mes = ?";
                 $existe = Database::fetchOne($sqlExiste, [$aptUserId, $anio, $mes]);
 
                 if (!$existe) {
                     // Fecha vencimiento: día 5 del mes correspondiente
                     $fechaVencimiento = date('Y-m-05', $cursorTime);
-                    $estado = 'pendiente';
 
                     $sqlInsert = "INSERT INTO mensualidades (
                                     apartamento_usuario_id, mes, anio, cantidad_controles,
                                     monto_usd, monto_bs, tasa_cambio_id, estado, fecha_vencimiento
-                                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                  ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente', ?)";
 
                     $params = [
                         $aptUserId,
@@ -902,7 +934,6 @@ class Mensualidad
                         $montoUsd,
                         $montoBs,
                         $tasa['id'],
-                        $estado,
                         $fechaVencimiento
                     ];
 
@@ -920,21 +951,29 @@ class Mensualidad
 
             Database::commit();
 
-            writeLog("Cargadas $mensualidadesGeneradas mensualidades históricas para usuario ID: $usuarioId desde $mesInicio/$anioInicio", 'info');
+            $detalleMsg = "Se generaron $mensualidadesGeneradas mensualidades";
+            if ($mensualidadesEliminadas > 0) {
+                $detalleMsg .= " (se reemplazaron $mensualidadesEliminadas con montos actualizados)";
+            }
+            $detalleMsg .= " desde $mesInicio/$anioInicio hasta el mes actual.";
+
+            writeLog("Cargadas/reemplazadas mensualidades históricas para usuario ID: $usuarioId desde $mesInicio/$anioInicio. Eliminadas: $mensualidadesEliminadas, Generadas: $mensualidadesGeneradas", 'info');
 
             return [
-                'success' => true,
-                'message' => "Se generaron $mensualidadesGeneradas mensualidades históricas correctamente.",
-                'generadas' => $mensualidadesGeneradas
+                'success'   => true,
+                'message'   => $detalleMsg,
+                'generadas' => $mensualidadesGeneradas,
+                'eliminadas' => $mensualidadesEliminadas
             ];
 
         } catch (Exception $e) {
             Database::rollback();
             writeLog("Error al cargar deuda histórica para usuario ID $usuarioId: " . $e->getMessage(), 'error');
             return [
-                'success' => false,
-                'message' => $e->getMessage(),
-                'generadas' => 0
+                'success'   => false,
+                'message'   => $e->getMessage(),
+                'generadas' => 0,
+                'eliminadas' => 0
             ];
         }
     }

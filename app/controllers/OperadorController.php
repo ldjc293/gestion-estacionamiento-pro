@@ -499,11 +499,14 @@ class OperadorController
             }
         }
 
-        // Validar que el monto pagado sea razonable (permitir pequeña variación por redondeo de tasa)
-        $variacionPermitida = 0.15; // 15 centavos de variación permitida
-        if (abs($montoEsperadoUSD - $montoEnUSD) > $variacionPermitida) {
+        // Validar que el monto pagado sea razonable.
+        // Se permite hasta un 10% de variación para cubrir diferencias de tasa histórica,
+        // redondeo y tarifas que cambian entre el momento de generación y el pago.
+        $variacionPermitidaPorcentaje = 0.10; // 10%
+        $variacionMaximaUSD = max(0.50, $montoEsperadoUSD * $variacionPermitidaPorcentaje);
+        if ($montoEsperadoUSD > 0 && abs($montoEsperadoUSD - $montoEnUSD) > $variacionMaximaUSD) {
             $_SESSION['error'] = sprintf(
-                'El monto pagado equivalente (%.2f USD) no coincide con el monto esperado (%.2f USD) basado en la tarifa actual.',
+                'El monto pagado equivalente (%.2f USD) difiere demasiado del monto esperado (%.2f USD). Verifique el monto e inténtelo de nuevo.',
                 $montoEnUSD,
                 $montoEsperadoUSD
             );
