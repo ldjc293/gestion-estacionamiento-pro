@@ -212,7 +212,7 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 
 <!-- Modal Previsualización Comprobante -->
-<div class="modal fade" id="modalComprobante" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalComprobante" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white">
@@ -394,7 +394,18 @@ function verDetalles(pagoId) {
 
 function verComprobante(url) {
     const modalElement = document.getElementById('modalComprobante');
-    const modal = new bootstrap.Modal(modalElement);
+    if (!modalElement) return;
+
+    if (!modalElement.dataset.blurListenerAdded) {
+        modalElement.addEventListener('hide.bs.modal', function () {
+            if (document.activeElement && modalElement.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        });
+        modalElement.dataset.blurListenerAdded = 'true';
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     const imgWrapper = document.getElementById('wrapperImgH');
     const pdfWrapper = document.getElementById('wrapperPdfH');
     const img = document.getElementById('imgComprobante');

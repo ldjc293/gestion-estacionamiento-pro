@@ -153,7 +153,7 @@ require_once __DIR__ . '/../../layouts/header.php';
 </div>
 
 <!-- Modal Visor de Comprobante Universal -->
-<div class="modal fade" id="modalComprobanteUniversal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="modalComprobanteUniversal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white">
@@ -183,7 +183,16 @@ function verComprobanteUniversal(src, title) {
     const modalEl = document.getElementById('modalComprobanteUniversal');
     if (!modalEl) return;
 
-    const modal = new bootstrap.Modal(modalEl);
+    if (!modalEl.dataset.blurListenerAdded) {
+        modalEl.addEventListener('hide.bs.modal', function () {
+            if (document.activeElement && modalEl.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        });
+        modalEl.dataset.blurListenerAdded = 'true';
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     const imgWrapper = document.getElementById('wrapperImg');
     const pdfWrapper = document.getElementById('wrapperPdf');
     const img = document.getElementById('imgComprobanteUniversal');

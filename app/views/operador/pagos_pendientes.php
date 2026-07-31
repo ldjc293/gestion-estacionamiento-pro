@@ -121,7 +121,7 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 
 <!-- Modal para ver comprobante -->
-<div class="modal fade" id="modalComprobante" tabindex="-1" aria-labelledby="modalComprobanteTitle" aria-hidden="true">
+<div class="modal fade" id="modalComprobante" tabindex="-1" aria-labelledby="modalComprobanteTitle">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -149,7 +149,18 @@ require_once __DIR__ . '/../layouts/header.php';
 <script>
 function verComprobante(url) {
     const modalElement = document.getElementById('modalComprobante');
-    const modal = new bootstrap.Modal(modalElement);
+    if (!modalElement) return;
+
+    if (!modalElement.dataset.blurListenerAdded) {
+        modalElement.addEventListener('hide.bs.modal', function () {
+            if (document.activeElement && modalElement.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
+        });
+        modalElement.dataset.blurListenerAdded = 'true';
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     const imgWrapper = document.getElementById('wrapperImgOp');
     const pdfWrapper = document.getElementById('wrapperPdfOp');
     const img = document.getElementById('imgComprobante');
