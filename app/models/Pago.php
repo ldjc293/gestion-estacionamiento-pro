@@ -270,22 +270,44 @@ class Pago
      */
     public function rechazar(int $rechazadoPor, string $motivo): bool
     {
-        $sql = "UPDATE pagos
-                SET estado_comprobante = 'rechazado',
-                    motivo_rechazo = ?,
-                    aprobado_por = ?,
-                    fecha_aprobacion = NOW()
-                WHERE id = ?";
+        try {
+            Database::beginTransaction();
 
-        $result = Database::execute($sql, [$motivo, $rechazadoPor, $this->id]) > 0;
+            $sql = "UPDATE pagos
+                    SET estado_comprobante = 'rechazado',
+                        motivo_rechazo = ?,
+                        aprobado_por = ?,
+                        fecha_aprobacion = NOW()
+                    WHERE id = ?";
 
-        if ($result) {
-            // Enviar notificación de rechazo
-            $this->enviarNotificacionRechazo($motivo);
-            writeLog("Pago rechazado: {$this->numero_recibo} - Motivo: $motivo", 'info');
+            $result = Database::execute($sql, [$motivo, $rechazadoPor, $this->id]) > 0;
+
+            if ($result) {
+                // Restablecer el estado de las mensualidades asociadas a 'pendiente'
+                // para que no se queden marcadas como pagadas al ser rechazadas
+                $sqlRestablecer = "UPDATE mensualidades
+                                   SET estado = 'pendiente'
+                                   FROM pago_mensualidad pm
+                                   WHERE pm.mensualidad_id = mensualidades.id
+                                     AND pm.pago_id = ?";
+                Database::execute($sqlRestablecer, [$this->id]);
+
+                // Recalcular vencidas para que tomen el estado 'vencido' si pasaron la fecha de vencimiento
+                Mensualidad::marcarVencidas();
+
+                // Enviar notificación de rechazo
+                $this->enviarNotificacionRechazo($motivo);
+                writeLog("Pago rechazado: {$this->numero_recibo} - Motivo: $motivo", 'info');
+            }
+
+            Database::commit();
+            return $result;
+
+        } catch (Exception $e) {
+            Database::rollback();
+            writeLog("Error al rechazar pago: " . $e->getMessage(), 'error');
+            return false;
         }
-
-        return $result;
     }
 
     /**
