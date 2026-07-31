@@ -134,8 +134,8 @@ if ($controller === 'uploads') {
 
         $mime = $mimeTypes[$ext] ?? (function_exists('mime_content_type') ? mime_content_type($realPath) : 'application/octet-stream');
 
-        if (ob_get_level()) {
-            ob_end_clean();
+        while (ob_get_level()) {
+            @ob_end_clean();
         }
 
         header('Access-Control-Allow-Origin: *');

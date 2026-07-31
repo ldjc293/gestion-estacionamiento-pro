@@ -1528,7 +1528,14 @@ class ConsultorController
         }
 
         ob_start();
-        imagejpeg($image, null, 82);
+        $destExt = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+        if ($destExt === 'png') {
+            imagepng($image, null, 6);
+        } elseif ($destExt === 'webp' && function_exists('imagewebp')) {
+            imagewebp($image, null, 80);
+        } else {
+            imagejpeg($image, null, 82);
+        }
         $compressedBytes = ob_get_clean();
         imagedestroy($image);
 

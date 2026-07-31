@@ -2420,7 +2420,14 @@ class OperadorController
         }
 
         ob_start();
-        imagejpeg($image, null, 82);
+        $destExt = strtolower(pathinfo($destPath, PATHINFO_EXTENSION));
+        if ($destExt === 'png') {
+            imagepng($image, null, 6);
+        } elseif ($destExt === 'webp' && function_exists('imagewebp')) {
+            imagewebp($image, null, 80);
+        } else {
+            imagejpeg($image, null, 82);
+        }
         $compressedBytes = ob_get_clean();
         imagedestroy($image);
 
@@ -2449,13 +2456,14 @@ class OperadorController
         }
 
         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
+        if ($extension === 'jpeg') $extension = 'jpg';
+        $allowed = ['jpg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
         if (!in_array($extension, $allowed)) {
             writeLog("Error uploadComprobante (usuario $usuarioId): Extensión '$extension' no permitida", 'error');
             return null;
         }
 
-        $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.' . ($extension === 'pdf' ? 'pdf' : 'jpg');
+        $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.' . $extension;
         $rutaDestino = $uploadDir . $nombreArchivo;
 
         $exito = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
