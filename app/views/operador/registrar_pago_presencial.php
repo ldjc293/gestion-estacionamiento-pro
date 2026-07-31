@@ -775,6 +775,6 @@ function generarMensualidadesFuturas(meses) {
     }
 }
 </script>
-<script src="<?= url('/js/registrar-pago-presencial.js') ?>?v=<?= time() ?>"></script>
+<script src="<?= rtrim(APP_URL, '/') ?>/js/registrar-pago-presencial.js?v=<?= filemtime(__DIR__ . '/../../../public/js/registrar-pago-presencial.js') ?>"></script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

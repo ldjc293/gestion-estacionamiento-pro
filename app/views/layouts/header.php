@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $pageTitle ?? 'Dashboard' ?> - <?= APP_NAME ?></title>
 
+    <!-- Base URL para rutas absolutas -->
+    <base href="<?= rtrim(APP_URL, '/') ?>/">
+
+    <!-- APP_URL disponible en JS para fetch y scripts -->
+    <script>
+        var APP_URL = '<?= rtrim(APP_URL, '/') ?>';
+    </script>
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -13,6 +21,7 @@
 
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 
     <!-- Custom CSS -->
     <style>
@@ -619,6 +628,6 @@
     </script>
 
     <!-- Confirmaciones y prevención de doble-submit -->
-    <script src="<?= url('/js/confirm-actions.js') ?>"></script>
+    <script src="<?= rtrim(APP_URL, '/') ?>/js/confirm-actions.js?v=<?= filemtime(__DIR__ . '/../../../public/js/confirm-actions.js') ?>"></script>
 </head>
 <body>
