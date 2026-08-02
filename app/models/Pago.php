@@ -87,7 +87,9 @@ class Pago
 
             // Calcular montos basados en las mensualidades seleccionadas (sumando sus monto_usd registrados)
             $montoCalculadoUSD = 0;
-            if (!empty($data['mensualidades_ids']) && is_array($data['mensualidades_ids'])) {
+            if (!empty($data['monto_usd']) && (float)$data['monto_usd'] > 0) {
+                $montoCalculadoUSD = (float)$data['monto_usd'];
+            } elseif (!empty($data['mensualidades_ids']) && is_array($data['mensualidades_ids'])) {
                 $placeholders = implode(',', array_fill(0, count($data['mensualidades_ids']), '?'));
                 $sqlSum = "SELECT SUM(monto_usd) as total FROM mensualidades WHERE id IN ($placeholders)";
                 $sumRow = Database::fetchOne($sqlSum, $data['mensualidades_ids']);
@@ -107,7 +109,11 @@ class Pago
             $tasaBCV = $tasaData ? (float)$tasaData['tasa_usd_bs'] : 36.40;
             $tasaId = $tasaData ? $tasaData['id'] : null;
 
-            $montoCalculadoBS = $montoCalculadoUSD * $tasaBCV;
+            if (!empty($data['monto_bs']) && (float)$data['monto_bs'] > 0) {
+                $montoCalculadoBS = (float)$data['monto_bs'];
+            } else {
+                $montoCalculadoBS = $montoCalculadoUSD * $tasaBCV;
+            }
 
             // Generar número de recibo
             $numeroRecibo = self::generarNumeroRecibo();

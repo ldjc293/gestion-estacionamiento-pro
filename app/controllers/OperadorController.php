@@ -563,7 +563,7 @@ class OperadorController
 
         // Registrar y aprobar automáticamente (pago presencial)
         try {
-            $pagoId = Pago::registrar([
+            $pagoData = [
                 'apartamento_usuario_id' => $apartamentoUsuarioId,
                 'moneda_pago' => $monedaPago,
                 'fecha_pago' => $fechaPago,
@@ -571,7 +571,17 @@ class OperadorController
                 'comprobante_ruta' => $comprobanteRuta,
                 'notas' => !empty($referencia) ? 'Ref: ' . $referencia : null,
                 'registrado_por' => $usuario->id // Operador que registra
-            ]);
+            ];
+
+            if ($monto > 0) {
+                if ($moneda === 'Bs') {
+                    $pagoData['monto_bs'] = $monto;
+                } elseif ($moneda === 'USD') {
+                    $pagoData['monto_usd'] = $monto;
+                }
+            }
+
+            $pagoId = Pago::registrar($pagoData);
 
             // Aprobar automáticamente
             $pago = Pago::findById($pagoId);

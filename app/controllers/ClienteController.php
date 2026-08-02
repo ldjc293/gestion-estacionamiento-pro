@@ -286,7 +286,7 @@ class ClienteController
                 $monedaPago = 'usd_efectivo';
             }
             
-            $pagoId = Pago::registrar([
+            $pagoData = [
                 'apartamento_usuario_id' => $apartamentoUsuarioId,
                 'moneda_pago' => $monedaPago,
                 'fecha_pago' => $fechaPago,
@@ -295,7 +295,17 @@ class ClienteController
                 'registrado_por' => $usuario->id,
                 'notas' => !empty($referencia) ? $referencia : null,
                 'estado_comprobante' => 'pendiente' // Siempre pendiente para revisión del operador
-            ]);
+            ];
+
+            if ($monto > 0) {
+                if ($moneda === 'Bs') {
+                    $pagoData['monto_bs'] = $monto;
+                } elseif ($moneda === 'USD') {
+                    $pagoData['monto_usd'] = $monto;
+                }
+            }
+
+            $pagoId = Pago::registrar($pagoData);
 
             writeLog("Pago registrado por cliente {$usuario->email}: ID $pagoId, Moneda: $monedaPago", 'info');
 
