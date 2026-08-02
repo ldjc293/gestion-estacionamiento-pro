@@ -269,7 +269,7 @@ function verComprobanteUniversal(src, title) {
     btnDescargar.href = src;
 
     const cleanSrc = src.split('?')[0].toLowerCase();
-    const isPDF = cleanSrc.endsWith('.pdf');
+    const isPDF = cleanSrc.endsWith('.pdf') || src.startsWith('data:application/pdf');
 
     if (isPDF) {
         imgWrapper.classList.add('d-none');

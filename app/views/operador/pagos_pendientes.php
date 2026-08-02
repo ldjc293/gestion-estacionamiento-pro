@@ -170,7 +170,7 @@ function verComprobante(url) {
     btnDescargar.href = url;
 
     const cleanUrl = url.split('?')[0].toLowerCase();
-    const isPDF = cleanUrl.endsWith('.pdf');
+    const isPDF = cleanUrl.endsWith('.pdf') || url.startsWith('data:application/pdf');
 
     if (isPDF) {
         imgWrapper.classList.add('d-none');
