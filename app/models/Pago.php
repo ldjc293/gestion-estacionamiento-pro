@@ -249,6 +249,12 @@ class Pago
             // Marcar mensualidades asociadas como pagadas
             $this->marcarMensualidadesComoPagadas();
 
+            // Verificar y desbloquear controles automáticamente si la mora es menor a 4 meses
+            if (!empty($this->apartamento_usuario_id)) {
+                require_once __DIR__ . '/Mensualidad.php';
+                Mensualidad::verificarDesbloqueosPorApartamentoUsuario((int)$this->apartamento_usuario_id);
+            }
+
             // Generar recibo PDF
             $this->generarRecibo();
 

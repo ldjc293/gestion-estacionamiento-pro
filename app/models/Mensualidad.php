@@ -400,6 +400,62 @@ class Mensualidad
     }
 
     /**
+     * Verificar y desbloquear controles automáticamente si el usuario ya no tiene mora (menos de 4 meses)
+     *
+     * @param int $apartamentoUsuarioId
+     * @return bool
+     */
+    public static function verificarDesbloqueosPorApartamentoUsuario(int $apartamentoUsuarioId): bool
+    {
+        try {
+            // Contar meses de mora del usuario (fecha_vencimiento anterior a la fecha actual y sin pago aprobado)
+            $sqlMora = "SELECT COUNT(m.id) as meses_mora
+                        FROM mensualidades m
+                        WHERE m.apartamento_usuario_id = ?
+                          AND m.fecha_vencimiento < CURRENT_DATE
+                          AND m.estado != 'pagada'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM pago_mensualidad pm
+                              JOIN pagos p ON p.id = pm.pago_id
+                              WHERE pm.mensualidad_id = m.id
+                                AND p.estado_comprobante IN ('aprobado', 'no_aplica')
+                          )";
+
+            $res = Database::fetchOne($sqlMora, [$apartamentoUsuarioId]);
+            $mesesMora = $res ? (int)$res['meses_mora'] : 0;
+            $limiteBloqueo = defined('MESES_BLOQUEO') ? MESES_BLOQUEO : 4;
+
+            // Si el usuario debe menos de 4 meses (o 0), desbloquear controles bloqueados por morosidad
+            if ($mesesMora < $limiteBloqueo) {
+                // Desbloquear mensualidades
+                $sqlUnblockMens = "UPDATE mensualidades
+                                   SET bloqueado = FALSE
+                                   WHERE apartamento_usuario_id = ?";
+                Database::execute($sqlUnblockMens, [$apartamentoUsuarioId]);
+
+                // Desbloquear controles
+                $sqlDesbloquear = "UPDATE controles_estacionamiento
+                                    SET estado = 'activo',
+                                        motivo_estado = NULL,
+                                        fecha_estado = NOW()
+                                    WHERE apartamento_usuario_id = ?
+                                      AND estado = 'bloqueado'
+                                      AND (motivo_estado ILIKE '%morosidad%' OR motivo_estado IS NULL)";
+                $desbloqueados = Database::execute($sqlDesbloquear, [$apartamentoUsuarioId]);
+
+                writeLog("Controles desbloqueados automáticamente para apartamento_usuario_id $apartamentoUsuarioId (Mora: $mesesMora): $desbloqueados", 'info');
+                return true;
+            }
+
+            return false;
+
+        } catch (Exception $e) {
+            writeLog("Error al verificar desbloqueos: " . $e->getMessage(), 'error');
+            return false;
+        }
+    }
+
+    /**
      * Calcular total adeudado de un usuario
      *
      * @param int $usuarioId ID del usuario
