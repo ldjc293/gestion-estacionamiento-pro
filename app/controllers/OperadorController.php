@@ -2770,8 +2770,11 @@ class OperadorController
         $usuarioId = intval($_POST['usuario_id'] ?? 0);
         $mesInicio = intval($_POST['mes_inicio'] ?? 0);
         $anioInicio = intval($_POST['anio_inicio'] ?? 0);
+        $mesFin = !empty($_POST['mes_fin']) ? intval($_POST['mes_fin']) : null;
+        $anioFin = !empty($_POST['anio_fin']) ? intval($_POST['anio_fin']) : null;
 
-        if ($usuarioId <= 0 || $mesInicio < 1 || $mesInicio > 12 || $anioInicio < 2020 || $anioInicio > intval(date('Y'))) {
+        $anioMax = intval(date('Y')) + 10;
+        if ($usuarioId <= 0 || $mesInicio < 1 || $mesInicio > 12 || $anioInicio < 2020 || $anioInicio > $anioMax) {
             $msg = 'Parámetros inválidos para cargar la deuda histórica';
             if ($isAjax) {
                 echo json_encode(['success' => false, 'message' => $msg]);
@@ -2782,7 +2785,7 @@ class OperadorController
             return;
         }
 
-        $result = Mensualidad::cargarDeudaHistorica($usuarioId, $mesInicio, $anioInicio);
+        $result = Mensualidad::cargarDeudaHistorica($usuarioId, $mesInicio, $anioInicio, $mesFin, $anioFin);
 
         if ($isAjax) {
             echo json_encode($result);

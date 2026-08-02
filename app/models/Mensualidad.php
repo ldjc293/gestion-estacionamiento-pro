@@ -826,7 +826,7 @@ class Mensualidad
      * @param int $anioInicio Año de inicio (ej. 2025)
      * @return array ['success' => bool, 'message' => string, 'generadas' => int]
      */
-    public static function cargarDeudaHistorica(int $usuarioId, int $mesInicio, int $anioInicio): array
+    public static function cargarDeudaHistorica(int $usuarioId, int $mesInicio, int $anioInicio, ?int $mesFin = null, ?int $anioFin = null): array
     {
         try {
             Database::beginTransaction();
@@ -866,17 +866,22 @@ class Mensualidad
             $montoBs = round($montoUsd * (float)$tasa['tasa_usd_bs'], 2);
 
             $fechaInicioTimestamp = strtotime(sprintf('%04d-%02d-01', $anioInicio, $mesInicio));
-            $fechaActualTimestamp = strtotime(date('Y-m-01'));
+            
+            if ($anioFin && $mesFin && $mesFin >= 1 && $mesFin <= 12) {
+                $fechaFinTimestamp = strtotime(sprintf('%04d-%02d-01', $anioFin, $mesFin));
+            } else {
+                $fechaFinTimestamp = max(strtotime(date('Y-m-01')), $fechaInicioTimestamp);
+            }
 
-            if ($fechaInicioTimestamp > $fechaActualTimestamp) {
-                throw new Exception("El mes de inicio no puede ser posterior al mes actual");
+            if ($fechaInicioTimestamp > $fechaFinTimestamp) {
+                $fechaFinTimestamp = $fechaInicioTimestamp;
             }
 
             // PASO 1: Eliminar mensualidades SIN pagos aprobados en el rango a corregir.
             // Esto permite reemplazar mensualidades erróneas (montos viejos, meses fuera de orden, etc.)
             $mensualidadesEliminadas = 0;
             $cursorTime = $fechaInicioTimestamp;
-            while ($cursorTime <= $fechaActualTimestamp) {
+            while ($cursorTime <= $fechaFinTimestamp) {
                 $mes  = (int)date('n', $cursorTime);
                 $anio = (int)date('Y', $cursorTime);
 
@@ -908,7 +913,7 @@ class Mensualidad
             $mensualidadesGeneradas = 0;
             $cursorTime = $fechaInicioTimestamp;
 
-            while ($cursorTime <= $fechaActualTimestamp) {
+            while ($cursorTime <= $fechaFinTimestamp) {
                 $mes  = (int)date('n', $cursorTime);
                 $anio = (int)date('Y', $cursorTime);
 

@@ -584,8 +584,8 @@ function abrirModalCambiarEstatusControl(controlId, controlNumero, estadoActual)
 function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
     const anioActual = new Date().getFullYear();
     let opcionesAnio = '';
-    for (let a = anioActual; a >= 2020; a--) {
-        opcionesAnio += `<option value="${a}">${a}</option>`;
+    for (let a = anioActual + 5; a >= 2020; a--) {
+        opcionesAnio += `<option value="${a}" ${a === anioActual ? 'selected' : ''}>${a}</option>`;
     }
 
     const meses = [
@@ -601,14 +601,26 @@ function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
         title: 'Cargar Deuda Histórica',
         html: `
             <div class="text-start mb-3">
-                <p class="small text-muted mb-2">Selecciona el <strong>primer mes que debe</strong> el cliente <strong>${nombreUsuario}</strong>. Se generarán automáticamente todas las mensualidades faltantes desde ese mes hasta la actualidad.</p>
-                <div class="mb-3">
-                    <label class="form-label font-semibold small">Año de inicio de deuda:</label>
-                    <select id="swalAnioInicio" class="form-select">${opcionesAnio}</select>
+                <p class="small text-muted mb-2">Selecciona el <strong>rango de meses de deuda</strong> para el residente <strong>${nombreUsuario}</strong>. Se generarán automáticamente las mensualidades en este periodo.</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label font-semibold small">Año Inicio:</label>
+                        <select id="swalAnioInicio" class="form-select form-select-sm">${opcionesAnio}</select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label font-semibold small">Mes Inicio:</label>
+                        <select id="swalMesInicio" class="form-select form-select-sm">${opcionesMes}</select>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label font-semibold small">Mes de inicio de deuda:</label>
-                    <select id="swalMesInicio" class="form-select">${opcionesMes}</select>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label font-semibold small">Año Fin (Opcional):</label>
+                        <select id="swalAnioFin" class="form-select form-select-sm"><option value="">Hasta la fecha actual (${anioActual})</option>${opcionesAnio}</select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label font-semibold small">Mes Fin (Opcional):</label>
+                        <select id="swalMesFin" class="form-select form-select-sm"><option value="">Hasta el mes actual</option>${opcionesMes}</select>
+                    </div>
                 </div>
             </div>
         `,
@@ -619,11 +631,13 @@ function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
         preConfirm: () => {
             const anio = document.getElementById('swalAnioInicio').value;
             const mes = document.getElementById('swalMesInicio').value;
+            const anioFin = document.getElementById('swalAnioFin').value;
+            const mesFin = document.getElementById('swalMesFin').value;
             if (!anio || !mes) {
                 Swal.showValidationMessage('Selecciona año y mes válidos');
                 return false;
             }
-            return { anio, mes };
+            return { anio, mes, anioFin, mesFin };
         }
     }).then((result) => {
         if (result.isConfirmed) {
@@ -638,6 +652,8 @@ function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
             formData.append('usuario_id', usuarioId);
             formData.append('anio_inicio', result.value.anio);
             formData.append('mes_inicio', result.value.mes);
+            if (result.value.anioFin) formData.append('anio_fin', result.value.anioFin);
+            if (result.value.mesFin) formData.append('mes_fin', result.value.mesFin);
             formData.append('csrf_token', '<?= generateCSRFToken() ?>');
 
             fetch('<?= url("admin/cargar-deuda-historica") ?>', {
@@ -665,8 +681,8 @@ function abrirModalDeudaHistorica(usuarioId, nombreUsuario) {
 function abrirModalRevertirDeuda(usuarioId, nombreUsuario) {
     const anioActual = new Date().getFullYear();
     let opcionesAnio = '';
-    for (let a = anioActual; a >= 2020; a--) {
-        opcionesAnio += `<option value="${a}">${a}</option>`;
+    for (let a = anioActual + 5; a >= 2020; a--) {
+        opcionesAnio += `<option value="${a}" ${a === anioActual ? 'selected' : ''}>${a}</option>`;
     }
 
     const meses = [

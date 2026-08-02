@@ -387,8 +387,8 @@ function selectSuggestionClientesControles(nombre) {
 function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
     const anioActual = new Date().getFullYear();
     let opcionesAnio = '';
-    for (let a = anioActual; a >= 2020; a--) {
-        opcionesAnio += `<option value="${a}">${a}</option>`;
+    for (let a = anioActual + 5; a >= 2020; a--) {
+        opcionesAnio += `<option value="${a}" ${a === anioActual ? 'selected' : ''}>${a}</option>`;
     }
 
     const meses = [
@@ -416,14 +416,26 @@ function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
                 <div class="tab-content" id="deudaTabsContent">
                     <!-- Tab Cargar -->
                     <div class="tab-pane fade show active" id="tab-cargar" role="tabpanel">
-                        <p class="small text-muted mb-2">Selecciona el <strong>primer mes que debe</strong> el cliente <strong>${nombreUsuario}</strong>.</p>
-                        <div class="mb-2">
-                            <label class="form-label font-semibold small mb-1">Año de inicio:</label>
-                            <select id="swalAnioInicioOp" class="form-select form-select-sm">${opcionesAnio}</select>
+                        <p class="small text-muted mb-2">Selecciona el <strong>rango de meses de deuda</strong> para <strong>${nombreUsuario}</strong>.</p>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label font-semibold small mb-1">Año Inicio:</label>
+                                <select id="swalAnioInicioOp" class="form-select form-select-sm">${opcionesAnio}</select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label font-semibold small mb-1">Mes Inicio:</label>
+                                <select id="swalMesInicioOp" class="form-select form-select-sm">${opcionesMes}</select>
+                            </div>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label font-semibold small mb-1">Mes de inicio:</label>
-                            <select id="swalMesInicioOp" class="form-select form-select-sm">${opcionesMes}</select>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label font-semibold small mb-1">Año Fin (Opcional):</label>
+                                <select id="swalAnioFinOp" class="form-select form-select-sm"><option value="">Hasta la fecha actual (${anioActual})</option>${opcionesAnio}</select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label font-semibold small mb-1">Mes Fin (Opcional):</label>
+                                <select id="swalMesFinOp" class="form-select form-select-sm"><option value="">Hasta el mes actual</option>${opcionesMes}</select>
+                            </div>
                         </div>
                     </div>
                     <!-- Tab Revertir -->
@@ -473,11 +485,13 @@ function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
             } else {
                 const anio = document.getElementById('swalAnioInicioOp').value;
                 const mes = document.getElementById('swalMesInicioOp').value;
+                const anioFin = document.getElementById('swalAnioFinOp').value;
+                const mesFin = document.getElementById('swalMesFinOp').value;
                 if (!anio || !mes) {
                     Swal.showValidationMessage('Selecciona año y mes válidos');
                     return false;
                 }
-                return { accion: 'cargar', anio, mes };
+                return { accion: 'cargar', anio, mes, anioFin, mesFin };
             }
         }
     }).then((result) => {
@@ -529,6 +543,8 @@ function abrirModalDeudaHistoricaOperador(usuarioId, nombreUsuario) {
                 formData.append('usuario_id', usuarioId);
                 formData.append('anio_inicio', val.anio);
                 formData.append('mes_inicio', val.mes);
+                if (val.anioFin) formData.append('anio_fin', val.anioFin);
+                if (val.mesFin) formData.append('mes_fin', val.mesFin);
                 formData.append('csrf_token', '<?= generateCSRFToken() ?>');
 
                 fetch('<?= url("operador/cargar-deuda-historica") ?>', {
