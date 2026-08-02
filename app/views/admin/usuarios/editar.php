@@ -125,7 +125,7 @@ require_once __DIR__ . '/../../layouts/header.php';
                                 </div>
                             </div>
 
-                            <?php if ($usuario->rol === 'cliente' && isset($apartamento) && $apartamento): ?>
+                            <?php if (isset($apartamento) && $apartamento): ?>
                                 <div class="alert alert-info">
                                     <i class="bi bi-building"></i>
                                     <strong>Apartamento:</strong>
@@ -280,9 +280,10 @@ require_once __DIR__ . '/../../layouts/header.php';
                             </div>
                         </div>
                     </div>
+                <?php endif; ?>
 
-                    <!-- Gestión de Controles de Estacionamiento -->
-                    <div class="card">
+                <!-- Gestión de Controles de Estacionamiento -->
+                <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h6 class="mb-0">
                                 <i class="bi bi-controller"></i> Gestión de Controles
@@ -387,7 +388,6 @@ require_once __DIR__ . '/../../layouts/header.php';
                             <?php endif; ?>
                         </div>
                     </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
