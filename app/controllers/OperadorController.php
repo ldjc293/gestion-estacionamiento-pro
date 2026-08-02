@@ -1560,7 +1560,9 @@ class OperadorController
                                             <i class="bi bi-key" style="font-size: 2rem;"></i>
                                             <p class="mb-0 mt-2 small">No hay controles asignados para este apartamento.</p>
                                         </div>
-                                                            <?php foreach ($controlesActuales as $control): ?>
+                                    <?php else: ?>
+                                        <div class="list-group shadow-sm">
+                                            <?php foreach ($controlesActuales as $control): ?>
                                                 <div class="list-group-item py-3">
                                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                                         <div>
