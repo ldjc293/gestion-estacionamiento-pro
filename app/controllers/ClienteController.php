@@ -119,8 +119,8 @@ class ClienteController
             exit;
         }
 
-        // Obtener mensualidades disponibles para pago (vencidas + futuras para pago adelantado)
-        $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($usuario->id, 12); // Aumentar a 12 meses
+        // Obtener mensualidades disponibles para pago (vencidas + futuras hasta el año siguiente)
+        $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($usuario->id);
 
         // Obtener tasa BCV actual
         $tasaBCVData = $this->getTasaBCVInfo();
@@ -184,7 +184,7 @@ class ClienteController
 
         // VALIDACIÓN CRÍTICA: Verificar que las mensualidades seleccionadas sean consecutivas desde la más antigua pendiente
         // Esto previene que los clientes salten meses manipulando el formulario
-        $mensualidadesPermitidas = Mensualidad::getMensualidadesParaPagoAdelantado($usuario->id, 12);
+        $mensualidadesPermitidas = Mensualidad::getMensualidadesParaPagoAdelantado($usuario->id);
         $idsPermitidos = array_map(fn($m) => $m->id, $mensualidadesPermitidas);
 
         // Verificar que TODAS las mensualidades seleccionadas estén en la lista permitida

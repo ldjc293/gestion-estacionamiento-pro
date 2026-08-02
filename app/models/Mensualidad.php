@@ -139,15 +139,16 @@ class Mensualidad
      * @param int $mesesAdelante Número máximo de meses consecutivos a permitir
      * @return array
      */
-    public static function getMensualidadesParaPagoAdelantado(int $usuarioId, int $mesesAdelante = 6): array
+    public static function getMensualidadesParaPagoAdelantado(int $usuarioId, ?int $mesesAdelante = null): array
     {
         // Generar mensualidades retroactivas para meses pasados sin pago si es necesario
         self::generarMensualidadesRetroactivas($usuarioId);
 
-        // Primero generar mensualidades futuras si no existen
-        self::generarMensualidadesFuturas($usuarioId, $mesesAdelante);
+        // Generar mensualidades futuras hasta el final del año siguiente (ej. hasta Dic 2027 si estamos en 2026)
+        $hastaAnio = (int)date('Y') + 1;
+        self::generarMensualidadesFuturas($usuarioId, $hastaAnio);
 
-        // Obtener todas las mensualidades no pagadas del usuario ordenadas por fecha de vencimiento
+        // Obtener todas las mensualidades no pagadas del usuario ordenadas por fecha de vencimiento hasta el fin del año siguiente
         $sqlTodas = "SELECT m.*, au.cantidad_controles,
                             CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento,
                             t.tasa_usd_bs,
@@ -159,20 +160,23 @@ class Mensualidad
                      WHERE au.usuario_id = ?
                        AND au.activo = TRUE
                        AND m.estado != 'pagada'
+                       AND m.anio <= ?
                        AND NOT EXISTS (
                            SELECT 1 FROM pago_mensualidad pm
                            JOIN pagos p ON p.id = pm.pago_id
                            WHERE pm.mensualidad_id = m.id
                              AND p.estado_comprobante IN ('aprobado', 'no_aplica')
                        )
-                     ORDER BY m.fecha_vencimiento ASC";
+                     ORDER BY m.fecha_vencimiento ASC, m.id ASC";
 
-        $todasMensualidades = Database::fetchAll($sqlTodas, [$usuarioId]);
+        $todasMensualidades = Database::fetchAll($sqlTodas, [$usuarioId, $hastaAnio]);
 
-        // Devolver las primeras mensualidades limitadas al máximo especificado (ya vienen filtradas e impecables)
-        $mensualidadesConsecutivas = array_slice($todasMensualidades, 0, $mesesAdelante);
+        // Si se especifica explícitamente un límite de meses y hay más mensualidades, recortar
+        if ($mesesAdelante !== null && $mesesAdelante > 0 && count($todasMensualidades) > $mesesAdelante) {
+            $todasMensualidades = array_slice($todasMensualidades, 0, $mesesAdelante);
+        }
 
-        return array_map(fn($row) => self::hydrate($row), $mensualidadesConsecutivas);
+        return array_map(fn($row) => self::hydrate($row), $todasMensualidades);
     }
 
     /**
@@ -567,7 +571,7 @@ class Mensualidad
      * @param int $mesesAdelante Número de meses a generar (por defecto 3)
      * @return array Mensualidades generadas
      */
-    public static function generarMensualidadesFuturas(int $usuarioId, int $mesesAdelante = 3): array
+    public static function generarMensualidadesFuturas(int $usuarioId, ?int $limiteParam = null): array
     {
         try {
             Database::beginTransaction();
@@ -609,15 +613,13 @@ class Mensualidad
             $mesActual = (int)date('n');
             $anioActual = (int)date('Y');
 
-            // Generar mensualidades para el mes actual y los próximos meses
-            for ($i = 0; $i <= $mesesAdelante; $i++) {
-                $mes = $mesActual + $i;
-                $anio = $anioActual;
+            $anioObjetivo = ($limiteParam && $limiteParam > 2000) ? $limiteParam : ($anioActual + 1);
+            $cursor = strtotime(sprintf('%04d-%02d-01', $anioActual, $mesActual));
+            $finObjetivo = strtotime(sprintf('%04d-12-01', $anioObjetivo));
 
-                if ($mes > 12) {
-                    $mes = $mes - 12;
-                    $anio++;
-                }
+            while ($cursor <= $finObjetivo) {
+                $mes = (int)date('n', $cursor);
+                $anio = (int)date('Y', $cursor);
 
                 // Verificar si ya existe la mensualidad
                 $sqlExiste = "SELECT id FROM mensualidades
@@ -671,6 +673,7 @@ class Mensualidad
                         $mensualidadesGeneradas[] = $mensualidad;
                     }
                 }
+                $cursor = strtotime('+1 month', $cursor);
             }
 
             Database::commit();

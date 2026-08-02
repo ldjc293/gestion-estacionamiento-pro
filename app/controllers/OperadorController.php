@@ -376,10 +376,8 @@ class OperadorController
         }
 
         if ($cliente) {
-            // Permitir hasta 12 meses siempre
-            $mesesAdelante = 12;
             try {
-                $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($cliente->id, $mesesAdelante);
+                $mensualidadesPendientes = Mensualidad::getMensualidadesParaPagoAdelantado($cliente->id);
             } catch (Exception $e) {
                 $_SESSION['error'] = 'Atención: ' . $e->getMessage() . '. Asigne un apartamento al cliente para poder gestionar sus mensualidades.';
                 $mensualidadesPendientes = [];
