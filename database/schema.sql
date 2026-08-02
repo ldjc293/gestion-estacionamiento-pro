@@ -192,7 +192,7 @@ CREATE TABLE pagos (
     monto_usd DECIMAL(10, 2) NOT NULL,
     monto_bs DECIMAL(12, 2) NOT NULL,
     tasa_cambio_id INT NOT NULL,
-    moneda_pago ENUM('usd_efectivo', 'bs_transferencia', 'bs_efectivo') NOT NULL,
+    moneda_pago ENUM('usd_efectivo', 'usd_zelle', 'bs_transferencia', 'bs_pago_movil', 'bs_efectivo') NOT NULL,
 
     -- Fechas
     fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

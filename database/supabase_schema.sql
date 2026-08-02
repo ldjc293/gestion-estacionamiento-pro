@@ -178,7 +178,7 @@ CREATE TABLE pagos (
     monto_usd DECIMAL(10, 2) NOT NULL,
     monto_bs DECIMAL(12, 2) NOT NULL,
     tasa_cambio_id INT NOT NULL REFERENCES tasa_cambio_bcv(id),
-    moneda_pago VARCHAR(50) NOT NULL CHECK (moneda_pago IN ('usd_efectivo', 'bs_transferencia', 'bs_efectivo')),
+    moneda_pago VARCHAR(50) NOT NULL CHECK (moneda_pago IN ('usd_efectivo', 'usd_zelle', 'bs_transferencia', 'bs_pago_movil', 'bs_efectivo')),
 
     -- Fechas
     fecha_pago TIMESTAMP DEFAULT NOW(),
