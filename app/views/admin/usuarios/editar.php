@@ -316,13 +316,30 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                           onclick="abrirModalCambiarEstatusControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>', '<?= $control['estado'] ?>')">
                                                         <?= ucfirst($control['estado']) ?> <i class="bi bi-pencil-square ms-1" style="font-size: 10px;"></i>
                                                     </span>
+                                                    <?php if (!empty($control['nota'])): ?>
+                                                        <span class="badge bg-info text-dark ms-1 small" title="Nota del control">
+                                                            <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control['nota']) ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                     <?php if ($control['fecha_asignacion']): ?>
                                                         <br><small class="text-muted">
                                                             Asignado: <?= date('d/m/Y', strtotime($control['fecha_asignacion'])) ?>
                                                         </small>
                                                     <?php endif; ?>
+
+                                                    <!-- Formulario para Editar Nota -->
+                                                    <form method="POST" action="<?= url('admin/guardar-nota-control') ?>" class="mt-2">
+                                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                                        <input type="hidden" name="control_id" value="<?= $control['id'] ?>">
+                                                        <input type="hidden" name="usuario_id" value="<?= $usuario->id ?>">
+                                                        <div class="input-group input-group-sm style-input-nota" style="max-width: 320px;">
+                                                            <span class="input-group-text bg-light text-muted"><i class="bi bi-pencil"></i></span>
+                                                            <input type="text" name="nota" class="form-control form-control-sm" placeholder="Nota/Identificador (ej. Hijo mayor)..." value="<?= htmlspecialchars($control['nota'] ?? '') ?>">
+                                                            <button type="submit" class="btn btn-outline-secondary btn-sm">Guardar</button>
+                                                        </div>
+                                                    </form>
                                                 </div>
-                                                <div class="d-flex gap-1">
+                                                <div class="d-flex gap-1 align-items-start">
                                                     <button type="button" class="btn btn-sm btn-outline-primary"
                                                             title="Cambiar Estatus"
                                                             onclick="abrirModalCambiarEstatusControl(<?= $control['id'] ?>, '<?= htmlspecialchars($control['numero_control_completo']) ?>', '<?= $control['estado'] ?>')">
@@ -344,20 +361,23 @@ require_once __DIR__ . '/../../layouts/header.php';
                             <?php if (isset($controlesDisponibles) && !empty($controlesDisponibles)): ?>
                                 <div class="border-top pt-3">
                                     <h6 class="text-muted mb-2">Asignar Nuevo Control</h6>
-                                    <form method="POST" action="<?= url('admin/asignar-control-usuario') ?>" class="d-flex gap-2">
+                                    <form method="POST" action="<?= url('admin/asignar-control-usuario') ?>" class="d-flex flex-column gap-2">
                                         <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                         <input type="hidden" name="usuario_id" value="<?= $usuario->id ?>">
-                                        <select class="form-select form-select-sm" name="control_id" required>
-                                            <option value="">Seleccionar control...</option>
-                                            <?php foreach ($controlesDisponibles as $control): ?>
-                                                <option value="<?= $control['id'] ?>">
-                                                    <?= htmlspecialchars($control['numero_control_completo']) ?> (Pos <?= $control['posicion_numero'] ?>, Rec <?= $control['receptor'] ?><?= $control['estado'] !== 'vacio' ? ' - ' . ucfirst($control['estado']) : '' ?>)
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <button type="submit" class="btn btn-success btn-sm">
-                                            <i class="bi bi-plus-circle"></i> Asignar
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <select class="form-select form-select-sm" name="control_id" required>
+                                                <option value="">Seleccionar control...</option>
+                                                <?php foreach ($controlesDisponibles as $control): ?>
+                                                    <option value="<?= $control['id'] ?>">
+                                                        <?= htmlspecialchars($control['numero_control_completo']) ?> (Pos <?= $control['posicion_numero'] ?>, Rec <?= $control['receptor'] ?><?= $control['estado'] !== 'vacio' ? ' - ' . ucfirst($control['estado']) : '' ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="submit" class="btn btn-success btn-sm text-nowrap">
+                                                <i class="bi bi-plus-circle"></i> Asignar
+                                            </button>
+                                        </div>
+                                        <input type="text" name="nota" class="form-control form-control-sm" placeholder="Nota/Observación opcional (ej: Hijo mayor, Vehículo 2)...">
                                     </form>
                                 </div>
                             <?php elseif (isset($controlesDisponibles)): ?>

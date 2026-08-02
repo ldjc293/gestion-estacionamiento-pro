@@ -268,6 +268,11 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                                 <?php else: ?>bg-warning<?php endif; ?> ms-1">
                                                                 <?= ucfirst($controlA['estado']) ?>
                                                             </span>
+                                                            <?php if (!empty($controlA['nota'])): ?>
+                                                                <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;" title="Nota de control">
+                                                                    <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($controlA['nota']) ?>
+                                                                </span>
+                                                            <?php endif; ?>
                                                         </div>
                                                         <select class="form-select form-select-sm estado-control-select"
                                                                 style="width: auto;"
@@ -335,6 +340,11 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                                 <?php else: ?>bg-warning<?php endif; ?> ms-1">
                                                                 <?= ucfirst($controlB['estado']) ?>
                                                             </span>
+                                                            <?php if (!empty($controlB['nota'])): ?>
+                                                                <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;" title="Nota de control">
+                                                                    <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($controlB['nota']) ?>
+                                                                </span>
+                                                            <?php endif; ?>
                                                         </div>
                                                         <select class="form-select form-select-sm estado-control-select"
                                                                 style="width: auto;"

@@ -126,6 +126,11 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <span class="badge bg-primary fs-6">
                                                 <?= htmlspecialchars($control['numero_control_completo']) ?>
                                             </span>
+                                            <?php if (!empty($control['nota'])): ?>
+                                                <br><span class="badge bg-info text-dark mt-1" style="font-size: 0.75rem;" title="Nota/Identificador">
+                                                    <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control['nota']) ?>
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <span class="badge bg-light text-dark">

@@ -96,6 +96,7 @@ CREATE TABLE controles_estacionamiento (
     -- Aprobaciones
     aprobado_por INT NULL REFERENCES usuarios(id) ON DELETE SET NULL,
     fecha_asignacion TIMESTAMP NULL,
+    nota VARCHAR(255) NULL,
 
     CONSTRAINT unique_posicion_receptor UNIQUE (posicion_numero, receptor)
 );

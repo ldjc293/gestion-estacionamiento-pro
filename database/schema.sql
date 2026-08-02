@@ -102,6 +102,7 @@ CREATE TABLE controles_estacionamiento (
     -- Aprobaciones
     aprobado_por INT NULL COMMENT 'Usuario que aprobó cambio de estado',
     fecha_asignacion DATETIME NULL COMMENT 'Fecha cuando se asignó a un usuario',
+    nota VARCHAR(255) NULL COMMENT 'Nota u observación personalizada (ej. titular/usuario del control en el hogar)',
 
     FOREIGN KEY (apartamento_usuario_id) REFERENCES apartamento_usuario(id) ON DELETE SET NULL,
     FOREIGN KEY (aprobado_por) REFERENCES usuarios(id) ON DELETE SET NULL,

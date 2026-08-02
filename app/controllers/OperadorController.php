@@ -1560,9 +1560,7 @@ class OperadorController
                                             <i class="bi bi-key" style="font-size: 2rem;"></i>
                                             <p class="mb-0 mt-2 small">No hay controles asignados para este apartamento.</p>
                                         </div>
-                                    <?php else: ?>
-                                        <div class="list-group shadow-sm">
-                                            <?php foreach ($controlesActuales as $control): ?>
+                                                            <?php foreach ($controlesActuales as $control): ?>
                                                 <div class="list-group-item py-3">
                                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                                         <div>
@@ -1574,6 +1572,11 @@ class OperadorController
                                                                 <?php else: ?>bg-secondary<?php endif; ?> ms-2">
                                                                 <?= ucfirst($control->estado) ?>
                                                             </span>
+                                                            <?php if (!empty($control->nota)): ?>
+                                                                <span class="badge bg-info text-dark ms-1" style="font-size: 0.75rem;" title="Nota del control">
+                                                                    <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control->nota) ?>
+                                                                </span>
+                                                            <?php endif; ?>
                                                             <?php if ($control->fecha_asignacion): ?>
                                                                 <div class="text-muted mt-1" style="font-size: 0.75rem;">
                                                                     <i class="bi bi-calendar"></i> Asignado: <?= date('d/m/Y', strtotime($control->fecha_asignacion)) ?>
@@ -1586,6 +1589,18 @@ class OperadorController
                                                         </button>
                                                     </div>
                                                     
+                                                    <!-- Guardar Nota Form -->
+                                                    <form method="POST" action="<?= url('operador/guardar-nota-control') ?>" class="form-guardar-nota mt-2 mb-2">
+                                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                                        <input type="hidden" name="control_id" value="<?= $control->id ?>">
+                                                        <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
+                                                        <div class="input-group input-group-sm">
+                                                            <span class="input-group-text bg-light text-muted"><i class="bi bi-pencil"></i></span>
+                                                            <input type="text" name="nota" class="form-control" placeholder="Nota/Identificador (ej. Hijo mayor, Toyota blanco)..." value="<?= htmlspecialchars($control->nota ?? '') ?>">
+                                                            <button type="submit" class="btn btn-outline-secondary">Guardar Nota</button>
+                                                        </div>
+                                                    </form>
+
                                                     <!-- Cambiar Estado Form -->
                                                     <form method="POST" action="<?= url('operador/cambiar-estado-control') ?>" class="form-cambiar-estado mt-2">
                                                         <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
@@ -1631,9 +1646,9 @@ class OperadorController
                                             <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                             <input type="hidden" name="usuario_id" value="<?= $usuarioGestionado->id ?>">
 
-                                            <div class="mb-3">
+                                            <div class="mb-2">
                                                 <label for="control_id" class="form-label fw-semibold text-muted small">Seleccionar Control Disponible</label>
-                                                <select class="form-select" name="control_id" id="control_id" required>
+                                                <select class="form-select form-select-sm" name="control_id" id="control_id" required>
                                                     <option value="">-- Seleccionar control libre --</option>
                                                     <?php foreach ($controlesDisponibles as $ctrl): ?>
                                                         <option value="<?= $ctrl['id'] ?>">
@@ -1643,7 +1658,12 @@ class OperadorController
                                                 </select>
                                             </div>
 
-                                            <button type="submit" class="btn btn-success w-100 shadow-sm">
+                                            <div class="mb-3">
+                                                <label for="nota_asignacion" class="form-label fw-semibold text-muted small">Nota u Observación (Opcional)</label>
+                                                <input type="text" class="form-control form-control-sm" name="nota" id="nota_asignacion" placeholder="Ej: Hijo mayor, Esposa, Vehículo secundario">
+                                            </div>
+
+                                            <button type="submit" class="btn btn-success w-100 shadow-sm btn-sm">
                                                 <i class="bi bi-plus-circle"></i> Asignar Control
                                             </button>
                                         </form>
@@ -1968,7 +1988,9 @@ class OperadorController
             return;
         }
 
-        if ($control->asignar($apartamentoUsuario['id'], $operador->id)) {
+        $nota = sanitize($_POST['nota'] ?? '');
+
+        if ($control->asignar($apartamentoUsuario['id'], $operador->id, 'activo', $nota)) {
             $successMsg = 'Control asignado correctamente';
             writeLog("Control {$control->numero_control_completo} asignado al usuario {$usuario->email} por operador {$operador->email}", 'info');
 
@@ -1985,6 +2007,66 @@ class OperadorController
             } else {
                 $_SESSION['error'] = $errorMsg;
                 redirect('operador/controles');
+            }
+        }
+    }
+
+    /**
+     * Guardar/Editar nota u observación de un control (Operador)
+     */
+    public function guardarNotaControl(): void
+    {
+        $operador = $this->checkAuth();
+        if (!$operador) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Método no permitido']);
+            } else {
+                redirect('operador/clientes-controles');
+            }
+            return;
+        }
+
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token de seguridad inválido']);
+            } else {
+                $_SESSION['error'] = 'Token de seguridad inválido';
+                redirect('operador/clientes-controles');
+            }
+            return;
+        }
+
+        $controlId = intval($_POST['control_id'] ?? 0);
+        $nota = sanitize($_POST['nota'] ?? '');
+
+        $control = Control::findById($controlId);
+        if (!$control) {
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Control no encontrado']);
+            } else {
+                $_SESSION['error'] = 'Control no encontrado';
+                redirect('operador/clientes-controles');
+            }
+            return;
+        }
+
+        if ($control->guardarNota($nota)) {
+            $msg = 'Nota del control actualizada correctamente';
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => true, 'message' => $msg]);
+            } else {
+                $_SESSION['success'] = $msg;
+                redirect('operador/clientes-controles');
+            }
+        } else {
+            $msg = 'Error al actualizar la nota del control';
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => $msg]);
+            } else {
+                $_SESSION['error'] = $msg;
+                redirect('operador/clientes-controles');
             }
         }
     }

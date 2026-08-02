@@ -20,6 +20,7 @@ class Control
     public $fecha_estado;
     public $aprobado_por;
     public $fecha_asignacion;
+    public $nota;
 
     /**
      * Buscar control por ID
@@ -133,11 +134,14 @@ class Control
      *
      * @param int $apartamentoUsuarioId ID de apartamento_usuario
      * @param int $aprobadoPor ID del usuario que aprueba
+     * @param string $estado Estado inicial (activo, bloqueado, etc.)
+     * @param string|null $nota Nota u observación del control
      * @return bool
      */
-    public function asignar(int $apartamentoUsuarioId, int $aprobadoPor, string $estado = 'activo'): bool
+    public function asignar(int $apartamentoUsuarioId, int $aprobadoPor, string $estado = 'activo', ?string $nota = null): bool
     {
         $estadoValido = in_array($estado, ['activo', 'bloqueado', 'suspendido', 'desactivado', 'perdido']) ? $estado : 'activo';
+        $notaSanitizada = !empty($nota) ? trim($nota) : null;
 
         $sql = "UPDATE controles_estacionamiento
                 SET apartamento_usuario_id = ?,
@@ -145,12 +149,14 @@ class Control
                     motivo_estado = 'Asignado a residente',
                     fecha_asignacion = NOW(),
                     fecha_estado = NOW(),
-                    aprobado_por = ?
+                    aprobado_por = ?,
+                    nota = ?
                 WHERE id = ?";
 
-        $result = Database::execute($sql, [$apartamentoUsuarioId, $estadoValido, $aprobadoPor, $this->id]) > 0;
+        $result = Database::execute($sql, [$apartamentoUsuarioId, $estadoValido, $aprobadoPor, $notaSanitizada, $this->id]) > 0;
 
         if ($result) {
+            $this->nota = $notaSanitizada;
             // Actualizar cantidad_controles en apartamento_usuario
             $sqlCount = "SELECT COUNT(*) as total FROM controles_estacionamiento WHERE apartamento_usuario_id = ? AND estado != 'vacio'";
             $countRow = Database::fetchOne($sqlCount, [$apartamentoUsuarioId]);
@@ -161,6 +167,26 @@ class Control
             self::recalcularMensualidadesFuturas($apartamentoUsuarioId);
 
             writeLog("Control {$this->numero_control_completo} asignado a apartamento_usuario ID {$apartamentoUsuarioId} con estado {$estadoValido}", 'info');
+        }
+
+        return $result;
+    }
+
+    /**
+     * Guardar o actualizar la nota personalizada de un control
+     *
+     * @param string|null $nota Texto de la nota o null para limpiar
+     * @return bool
+     */
+    public function guardarNota(?string $nota): bool
+    {
+        $notaSanitizada = !empty($nota) ? trim($nota) : null;
+        $sql = "UPDATE controles_estacionamiento SET nota = ? WHERE id = ?";
+        $result = Database::execute($sql, [$notaSanitizada, $this->id]) > 0;
+
+        if ($result) {
+            $this->nota = $notaSanitizada;
+            writeLog("Nota del control {$this->numero_control_completo} actualizada: " . ($notaSanitizada ?? 'limpiada'), 'info');
         }
 
         return $result;
@@ -182,12 +208,13 @@ class Control
                     estado = 'vacio',
                     motivo_estado = ?,
                     fecha_estado = NOW(),
-                    aprobado_por = ?
+                    aprobado_por = ?,
+                    nota = NULL
                 WHERE id = ?";
 
         $result = Database::execute($sql, [$motivo, $aprobadoPor, $this->id]) > 0;
-
         if ($result) {
+            $this->nota = null;
             writeLog("Control {$this->numero_control_completo} desasignado - Motivo: $motivo", 'info');
 
             if ($apartamentoUsuarioId) {
@@ -535,7 +562,8 @@ class Control
             'numero_control_completo' => $this->numero_control_completo,
             'estado' => $this->estado,
             'motivo_estado' => $this->motivo_estado,
-            'fecha_asignacion' => $this->fecha_asignacion
+            'fecha_asignacion' => $this->fecha_asignacion,
+            'nota' => $this->nota
         ];
     }
 }

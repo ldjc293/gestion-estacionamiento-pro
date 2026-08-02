@@ -272,7 +272,8 @@ document.addEventListener('submit', function(e) {
         e.target.id === 'formAsignarControl' || 
         e.target.id === 'formEditarUsuario' || 
         e.target.id === 'formAsignarApartamento' || 
-        e.target.classList.contains('form-cambiar-estado')
+        e.target.classList.contains('form-cambiar-estado') ||
+        e.target.classList.contains('form-guardar-nota')
     )) {
         e.preventDefault();
         const form = e.target;

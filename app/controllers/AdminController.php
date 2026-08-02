@@ -1103,6 +1103,7 @@ class AdminController
 
         $controlId = intval($_POST['control_id'] ?? 0);
         $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $nota = sanitize($_POST['nota'] ?? '');
 
         $control = Control::findById($controlId);
         $usuario = Usuario::findById($usuarioId);
@@ -1123,7 +1124,7 @@ class AdminController
             return;
         }
 
-        if ($control->asignar($apartamentoUsuario['id'], $admin->id)) {
+        if ($control->asignar($apartamentoUsuario['id'], $admin->id, 'activo', $nota)) {
             $_SESSION['success'] = 'Control asignado correctamente';
             writeLog("Control {$control->numero_control_completo} asignado al usuario {$usuario->email} por admin {$admin->email}", 'info');
         } else {
@@ -1131,6 +1132,63 @@ class AdminController
         }
 
         redirect('admin/editar-usuario?id=' . $usuarioId);
+    }
+
+    /**
+     * Guardar/Editar nota u observación de un control
+     */
+    public function guardarNotaControl(): void
+    {
+        $admin = $this->checkAuth();
+        if (!$admin) return;
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('admin/usuarios');
+            return;
+        }
+
+        if (!ValidationHelper::validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token de seguridad inválido']);
+            } else {
+                $_SESSION['error'] = 'Token de seguridad inválido';
+                redirect('admin/usuarios');
+            }
+            return;
+        }
+
+        $controlId = intval($_POST['control_id'] ?? 0);
+        $usuarioId = intval($_POST['usuario_id'] ?? 0);
+        $nota = sanitize($_POST['nota'] ?? '');
+
+        $control = Control::findById($controlId);
+        if (!$control) {
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Control no encontrado']);
+            } else {
+                $_SESSION['error'] = 'Control no encontrado';
+                redirect('admin/usuarios');
+            }
+            return;
+        }
+
+        if ($control->guardarNota($nota)) {
+            $msg = 'Nota del control actualizada correctamente';
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => true, 'message' => $msg]);
+            } else {
+                $_SESSION['success'] = $msg;
+                redirect($usuarioId ? 'admin/editar-usuario?id=' . $usuarioId : 'admin/mapa-controles');
+            }
+        } else {
+            $msg = 'Error al actualizar la nota del control';
+            if ($this->isAjaxRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => $msg]);
+            } else {
+                $_SESSION['error'] = $msg;
+                redirect($usuarioId ? 'admin/editar-usuario?id=' . $usuarioId : 'admin/mapa-controles');
+            }
+        }
     }
 
     /**

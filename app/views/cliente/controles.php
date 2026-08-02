@@ -115,6 +115,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                                         <small class="text-muted">
                                                             Posición <?= $control['posicion_numero'] ?> - Receptor <?= $control['receptor'] ?>
                                                         </small>
+                                                        <?php if (!empty($control['nota'])): ?>
+                                                            <div class="mt-1">
+                                                                <span class="badge bg-info text-dark" style="font-size: 0.75rem;" title="Nota de identificación">
+                                                                    <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control['nota']) ?>
+                                                                </span>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                     <div>
                                                         <div class="dropdown">
