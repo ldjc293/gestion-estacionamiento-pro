@@ -85,7 +85,7 @@ class AdminController
         foreach ($usuarios as $user) {
             // Obtener controles del usuario
             $sql = "SELECT ce.id, ce.numero_control_completo as numero_control,
-                           ce.estado, ce.fecha_asignacion,
+                           ce.estado, ce.fecha_asignacion, ce.nota,
                            CASE WHEN ce.estado = 'activo' THEN 1 ELSE 0 END as activo
                     FROM apartamento_usuario au
                     LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
@@ -250,7 +250,7 @@ class AdminController
         $apartamento = Database::fetchOne($sql, [$usuarioId]);
 
         // Obtener controles asignados
-        $sql = "SELECT ce.id, ce.numero_control_completo, ce.estado, ce.fecha_asignacion
+        $sql = "SELECT ce.id, ce.numero_control_completo, ce.estado, ce.fecha_asignacion, ce.nota
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
                 WHERE au.usuario_id = ? AND au.activo = TRUE
@@ -262,9 +262,9 @@ class AdminController
             return !empty($c['numero_control_completo']);
         });
 
-        // Obtener controles disponibles para asignar (solo para clientes)
+        // Obtener controles disponibles para asignar (para cualquier usuario con apartamento)
         $controlesDisponibles = [];
-        if ($usuario->rol === 'cliente' && $apartamento) {
+        if ($apartamento) {
             $controlesDisponibles = Control::getVacios();
         }
 
@@ -2769,7 +2769,7 @@ class AdminController
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
         // Obtener controles asignados (si tiene)
-        $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
+        $sql = "SELECT ce.id, ce.numero_control_completo, ce.estado, ce.fecha_asignacion, ce.nota
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
                 WHERE au.usuario_id = ? AND au.activo = TRUE

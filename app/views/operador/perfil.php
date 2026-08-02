@@ -158,6 +158,11 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 <h5 class="mb-0">
                                                     <i class="bi bi-controller"></i>
                                                     Control #<?= htmlspecialchars($control['numero_control_completo']) ?>
+                                                    <?php if (!empty($control['nota'])): ?>
+                                                        <span class="badge bg-info text-dark ms-1 small" style="font-size: 0.75rem;" title="Nota del control">
+                                                            <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control['nota']) ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </h5>
                                                 <?php
                                                 $estadoBadge = [

@@ -2289,7 +2289,7 @@ class OperadorController
         $apartamento = Database::fetchOne($sql, [$usuario->id]);
 
         // Obtener controles asignados (si tiene)
-        $sql = "SELECT ce.numero_control_completo, ce.estado, ce.fecha_asignacion
+        $sql = "SELECT ce.id, ce.numero_control_completo, ce.estado, ce.fecha_asignacion, ce.nota
                 FROM apartamento_usuario au
                 LEFT JOIN controles_estacionamiento ce ON ce.apartamento_usuario_id = au.id
                 WHERE au.usuario_id = ? AND au.activo = TRUE

@@ -155,10 +155,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <div class="col-md-6 mb-3">
                                         <div class="border rounded p-3">
                                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <h5 class="mb-0">
-                                                    <i class="bi bi-controller"></i>
-                                                    Control #<?= htmlspecialchars($control['numero_control_completo']) ?>
-                                                </h5>
+                                                 <h5 class="mb-0">
+                                                     <i class="bi bi-controller"></i>
+                                                     Control #<?= htmlspecialchars($control['numero_control_completo']) ?>
+                                                     <?php if (!empty($control['nota'])): ?>
+                                                         <span class="badge bg-info text-dark ms-1 small" style="font-size: 0.75rem;" title="Nota del control">
+                                                             <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($control['nota']) ?>
+                                                         </span>
+                                                     <?php endif; ?>
+                                                 </h5>
                                                 <?php
                                                 $estadoBadge = [
                                                     'activo' => 'success',
