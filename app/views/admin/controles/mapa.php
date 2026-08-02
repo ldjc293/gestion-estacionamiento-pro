@@ -273,6 +273,10 @@ require_once __DIR__ . '/../../layouts/header.php';
                                                                     <i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($controlA['nota']) ?>
                                                                 </span>
                                                             <?php endif; ?>
+                                                            <button type="button" class="btn btn-sm btn-link text-secondary p-0 border-0 ms-1" style="font-size: 11px;" title="Editar nota u observación del control"
+                                                                    onclick="editarNotaControl(<?= $controlA['id'] ?>, '<?= htmlspecialchars($controlA['numero_control_completo']) ?>', '<?= htmlspecialchars($controlA['nota'] ?? '', ENT_QUOTES) ?>')">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
                                                         </div>
                                                         <select class="form-select form-select-sm estado-control-select"
                                                                 style="width: auto;"
@@ -674,6 +678,47 @@ function ejecutarCambioEstadoDirecto(selectElement, controlId, controlNumero, nu
         console.error(error);
         selectElement.value = estadoActual;
         Swal.fire('Error', 'Error de conexión. Por favor, intente nuevamente.', 'error');
+    });
+}
+
+function editarNotaControl(controlId, controlNumero, notaActual) {
+    Swal.fire({
+        title: 'Nota del Control #' + controlNumero,
+        input: 'text',
+        inputLabel: 'Nota / Identificador (ej: Hijo mayor, Esposa, Toyota Yaris):',
+        inputValue: notaActual || '',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Nota',
+        cancelButtonText: 'Cancelar',
+        inputPlaceholder: 'Escriba la nota del control...'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const formData = new FormData();
+            formData.append('csrf_token', '<?= generateCSRFToken() ?>');
+            formData.append('control_id', controlId);
+            formData.append('nota', result.value ? result.value.trim() : '');
+
+            fetch('<?= url("admin/guardarNotaControl") ?>', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire('¡Guardado!', data.message || 'Nota actualizada correctamente', 'success')
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Error', data.message || 'Error al guardar la nota', 'error');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                Swal.fire('Error', 'Error de conexión. Intente nuevamente.', 'error');
+            });
+        }
     });
 }
 </script>
