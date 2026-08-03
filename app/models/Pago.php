@@ -364,9 +364,11 @@ class Pago
     }
 
     /**
-     * Obtener datos completos del pago para recibo
+     * Formatear rango de meses pagados en palabras
      *
-     * @return array
+     * @param array $listaMeses
+     * @return string
+     */
     public static function formatearRangoMeses(array $listaMeses): string
     {
         if (empty($listaMeses)) {
