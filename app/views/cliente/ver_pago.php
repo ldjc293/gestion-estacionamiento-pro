@@ -227,7 +227,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <li class="mb-2">
                                 <i class="bi bi-calendar"></i>
                                 <strong>Fecha de registro:</strong><br>
-                                <?= date('d/m/Y H:i:s', strtotime($pago->fecha_pago)) ?>
+                                <?= date('d/m/Y H:i', strtotime($pago->fecha_pago)) ?>
                             </li>
 
                             <?php if ($pago->estado_comprobante === 'aprobado'): ?>
@@ -239,7 +239,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <li class="mb-2">
                                     <i class="bi bi-clock"></i>
                                     <strong>Fecha de aprobación:</strong><br>
-                                    <?= date('d/m/Y H:i:s', strtotime($pago->fecha_aprobacion)) ?>
+                                    <?= date('d/m/Y H:i', strtotime($pago->fecha_aprobacion)) ?>
                                 </li>
                             <?php elseif ($pago->estado_comprobante === 'rechazado'): ?>
                                 <li class="mb-2">

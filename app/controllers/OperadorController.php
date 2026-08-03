@@ -429,7 +429,7 @@ class OperadorController
         $metodoPago = $_POST['metodo_pago'] ?? '';
         $referencia = sanitize($_POST['referencia'] ?? '');
         $rawFecha = sanitize($_POST['fecha_pago'] ?? '');
-        $fechaPago = !empty($rawFecha) ? (strlen($rawFecha) === 10 ? $rawFecha . ' ' . date('H:i:s') : $rawFecha) : date('Y-m-d H:i:s');
+        $fechaPago = !empty($rawFecha) ? (strlen($rawFecha) === 10 ? $rawFecha . ' ' . date('H:i:00') : $rawFecha) : date('Y-m-d H:i:00');
         $mensualidadesSeleccionadas = $_POST['mensualidades'] ?? [];
 
         // Validaciones

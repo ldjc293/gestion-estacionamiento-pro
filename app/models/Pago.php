@@ -138,9 +138,9 @@ class Pago
                 }
             }
 
-            $fechaPagoFinal = !empty($data['fecha_pago']) ? trim($data['fecha_pago']) : date('Y-m-d H:i:s');
+            $fechaPagoFinal = !empty($data['fecha_pago']) ? trim($data['fecha_pago']) : date('Y-m-d H:i:00');
             if (strlen($fechaPagoFinal) === 10) {
-                $fechaPagoFinal .= ' ' . date('H:i:s');
+                $fechaPagoFinal .= ' ' . date('H:i:00');
             }
 
             $params = [
