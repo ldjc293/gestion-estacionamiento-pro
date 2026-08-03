@@ -94,7 +94,7 @@ class PDFHelper
         $monedaPago = $mapFormaPago[$datos['moneda_pago']] ?? (MONEDAS_PAGO[$datos['moneda_pago']] ?? $datos['moneda_pago']);
         $mesesPagados = !empty($datos['meses_pagados_texto']) ? $datos['meses_pagados_texto'] : $datos['meses_pagados'];
         $controles = $datos['controles'] ?? 'N/A';
-        $referencia = !empty($datos['referencia']) ? $datos['referencia'] : 'N/A';
+        $referencia = !empty($datos['referencia']) ? $datos['referencia'] : (!empty($datos['notas']) ? $datos['notas'] : 'N/A');
 
         // Datos opcionales
         $esReconexion = $datos['es_reconexion'] ?? false;
