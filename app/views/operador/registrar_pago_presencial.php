@@ -203,19 +203,44 @@ class RegistrarPagoPresencial {
     setupCurrencyConversion() {
         const monedaSelect = document.getElementById('moneda');
         const montoInput = document.getElementById('monto');
+        const metodoSelect = document.getElementById('metodo_pago');
         const referenciaInput = document.getElementById('referencia');
         const labelReferencia = document.getElementById('label-referencia');
 
         if (monedaSelect && montoInput) {
-            // Función para actualizar el símbolo de moneda e indicador de requerido para referencia
-            const actualizarEstadoMoneda = () => {
+            const actualizarMetodoYSimbolo = () => {
                 const symbol = document.getElementById('moneda-symbol');
                 if (symbol) {
                     symbol.textContent = monedaSelect.value === 'USD' ? '$' : 'Bs';
                 }
-                
+
+                if (metodoSelect) {
+                    const prevMetodo = metodoSelect.value;
+                    if (monedaSelect.value === 'USD') {
+                        metodoSelect.innerHTML = `
+                            <option value="efectivo" selected>Efectivo en Dólares</option>
+                        `;
+                    } else { // Bs
+                        metodoSelect.innerHTML = `
+                            <option value="">Seleccione...</option>
+                            <option value="pago_movil">Pago Móvil</option>
+                            <option value="transferencia">Transferencia Bancaria</option>
+                            <option value="efectivo">Efectivo en Bolívares</option>
+                        `;
+                        if (['pago_movil', 'transferencia', 'efectivo'].includes(prevMetodo)) {
+                            metodoSelect.value = prevMetodo;
+                        }
+                    }
+                }
+                actualizarRequerimientosMetodo();
+            };
+
+            const actualizarRequerimientosMetodo = () => {
+                if (!metodoSelect) return;
+                const metodo = metodoSelect.value;
+
                 if (referenciaInput && labelReferencia) {
-                    if (monedaSelect.value === 'Bs') {
+                    if (metodo === 'pago_movil' || metodo === 'transferencia') {
                         referenciaInput.required = true;
                         labelReferencia.innerHTML = 'Referencia <span class="text-danger">*</span>';
                     } else {
@@ -225,16 +250,17 @@ class RegistrarPagoPresencial {
                 }
             };
 
-            // Actualizar estado inmediatamente
-            actualizarEstadoMoneda();
+            actualizarMetodoYSimbolo();
 
-            // Actualizar estado y recalcular monto total cuando cambie la moneda
             monedaSelect.addEventListener('change', () => {
-                actualizarEstadoMoneda();
+                actualizarMetodoYSimbolo();
                 this.calcularTotal();
             });
 
-            // Actualizar conversión cuando cambien los valores
+            if (metodoSelect) {
+                metodoSelect.addEventListener('change', actualizarRequerimientosMetodo);
+            }
+
             [monedaSelect, montoInput].forEach(element => {
                 element.addEventListener('change', () => this.actualizarConversion());
                 element.addEventListener('input', () => this.actualizarConversion());

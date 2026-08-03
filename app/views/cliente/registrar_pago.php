@@ -726,26 +726,80 @@ class RegistrarPagoCliente {
     setupCurrencyConversion() {
         const monedaSelect = document.getElementById('moneda');
         const montoInput = document.getElementById('monto');
+        const metodoSelect = document.getElementById('metodo_pago');
+        const referenciaInput = document.getElementById('referencia');
+        const reqReferencia = document.getElementById('req-referencia');
+        const comprobanteInput = document.getElementById('comprobante');
+        const reqComprobante = document.getElementById('req-comprobante');
 
         if (monedaSelect && montoInput) {
-            // Función para actualizar el símbolo de moneda
-            const actualizarSimboloMoneda = () => {
+            const actualizarMetodoYSimbolo = () => {
                 const symbol = document.getElementById('moneda-symbol');
                 if (symbol) {
                     symbol.textContent = monedaSelect.value === 'USD' ? '$' : 'Bs';
                 }
+
+                if (metodoSelect) {
+                    const prevMetodo = metodoSelect.value;
+                    if (monedaSelect.value === 'USD') {
+                        metodoSelect.innerHTML = `
+                            <option value="efectivo" selected>Efectivo en Dólares</option>
+                        `;
+                    } else { // Bs
+                        metodoSelect.innerHTML = `
+                            <option value="">Seleccione...</option>
+                            <option value="pago_movil">Pago Móvil</option>
+                            <option value="transferencia">Transferencia Bancaria</option>
+                            <option value="efectivo">Efectivo en Bolívares</option>
+                        `;
+                        if (['pago_movil', 'transferencia', 'efectivo'].includes(prevMetodo)) {
+                            metodoSelect.value = prevMetodo;
+                        }
+                    }
+                }
+                actualizarRequerimientosMetodo();
             };
 
-            // Actualizar símbolo inmediatamente
-            actualizarSimboloMoneda();
+            const actualizarRequerimientosMetodo = () => {
+                if (!metodoSelect) return;
+                const metodo = metodoSelect.value;
+                const esEfectivo = (metodo === 'efectivo');
 
-            // Actualizar símbolo y recalcular monto total cuando cambie la moneda
+                if (referenciaInput && reqReferencia) {
+                    if (esEfectivo || !metodo) {
+                        referenciaInput.required = false;
+                        reqReferencia.classList.add('d-none');
+                    } else {
+                        referenciaInput.required = true;
+                        reqReferencia.classList.remove('d-none');
+                    }
+                }
+
+                if (comprobanteInput && reqComprobante) {
+                    if (esEfectivo) {
+                        comprobanteInput.required = false;
+                        reqComprobante.classList.add('d-none');
+                    } else if (metodo === 'pago_movil' || metodo === 'transferencia') {
+                        comprobanteInput.required = true;
+                        reqComprobante.classList.remove('d-none');
+                    } else {
+                        comprobanteInput.required = false;
+                        reqComprobante.classList.add('d-none');
+                    }
+                }
+            };
+
+            actualizarMetodoYSimbolo();
+
             monedaSelect.addEventListener('change', () => {
-                actualizarSimboloMoneda();
+                actualizarMetodoYSimbolo();
                 this.calcularTotal();
             });
 
-            // Actualizar conversión cuando cambien los valores
+            if (metodoSelect) {
+                metodoSelect.addEventListener('change', actualizarRequerimientosMetodo);
+            }
+
             [monedaSelect, montoInput].forEach(element => {
                 element.addEventListener('change', () => this.actualizarConversion());
                 element.addEventListener('input', () => this.actualizarConversion());

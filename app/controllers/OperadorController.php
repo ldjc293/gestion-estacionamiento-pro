@@ -541,7 +541,7 @@ class OperadorController
             $monedaPago = 'usd_efectivo';
         }
 
-        // Subida del comprobante (es requerido por la vista)
+        // Subida del comprobante (requerido para transferencia y pago móvil, opcional para efectivo)
         $comprobanteRuta = null;
         if (isset($_FILES['comprobante']['error']) && ($_FILES['comprobante']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['comprobante']['error'] === UPLOAD_ERR_FORM_SIZE)) {
             $_SESSION['error'] = 'El comprobante seleccionado supera el tamaño máximo de archivo permitido por el servidor.';
@@ -556,8 +556,8 @@ class OperadorController
                 redirect($redirectUrl);
                 return;
             }
-        } else {
-            $_SESSION['error'] = 'El comprobante de pago es obligatorio';
+        } elseif ($moneda === 'Bs' && in_array($metodoPago, ['pago_movil', 'transferencia'])) {
+            $_SESSION['error'] = 'El comprobante de pago es obligatorio para Transferencia o Pago Móvil.';
             redirect($redirectUrl);
             return;
         }

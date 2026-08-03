@@ -285,7 +285,7 @@
     <div class="row">
         <div class="col-md-6 mb-3">
             <label class="form-label fw-bold">Método de Pago *</label>
-            <select class="form-select" name="metodo_pago" required>
+            <select class="form-select" name="metodo_pago" id="metodo_pago" required>
                 <option value="">Seleccione...</option>
                 <option value="transferencia">Transferencia Bancaria</option>
                 <option value="pago_movil">Pago Móvil</option>
