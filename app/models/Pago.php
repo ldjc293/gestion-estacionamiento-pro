@@ -367,6 +367,59 @@ class Pago
      * Obtener datos completos del pago para recibo
      *
      * @return array
+    public static function formatearRangoMeses(array $listaMeses): string
+    {
+        if (empty($listaMeses)) {
+            return 'N/A';
+        }
+
+        $mesesNombres = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+        ];
+
+        if (count($listaMeses) === 1) {
+            $m = $listaMeses[0];
+            return ($mesesNombres[intval($m['mes'])] ?? $m['mes']) . ' ' . $m['anio'];
+        }
+
+        $esConsecutivo = true;
+        for ($i = 0; $i < count($listaMeses) - 1; $i++) {
+            $actualMes = intval($listaMeses[$i]['mes']);
+            $actualAnio = intval($listaMeses[$i]['anio']);
+            $sigMes = intval($listaMeses[$i+1]['mes']);
+            $sigAnio = intval($listaMeses[$i+1]['anio']);
+
+            $esperadoMes = ($actualMes === 12) ? 1 : ($actualMes + 1);
+            $esperadoAnio = ($actualMes === 12) ? ($actualAnio + 1) : $actualAnio;
+
+            if ($sigMes !== $esperadoMes || $sigAnio !== $esperadoAnio) {
+                $esConsecutivo = false;
+                break;
+            }
+        }
+
+        $inicio = $listaMeses[0];
+        $fin = end($listaMeses);
+        $nombreInicio = ($mesesNombres[intval($inicio['mes'])] ?? $inicio['mes']) . ' ' . $inicio['anio'];
+        $nombreFin = ($mesesNombres[intval($fin['mes'])] ?? $fin['mes']) . ' ' . $fin['anio'];
+
+        if ($esConsecutivo) {
+            return "Desde $nombreInicio hasta $nombreFin";
+        }
+
+        $partes = [];
+        foreach ($listaMeses as $m) {
+            $partes[] = ($mesesNombres[intval($m['mes'])] ?? $m['mes']) . ' ' . $m['anio'];
+        }
+        return implode(', ', $partes);
+    }
+
+    /**
+     * Obtener datos completos del pago para recibo
+     *
+     * @return array
      */
     private function getDatosCompletos(): array
     {
@@ -393,6 +446,15 @@ class Pago
                 GROUP BY p.id, u.id, a.id, t.id, operador.id, au.id";
 
         $result = Database::fetchOne($sql, [$this->id]);
+
+        // Obtener lista de meses estructurados para rango en texto
+        $sqlMeses = "SELECT m.mes, m.anio 
+                     FROM pago_mensualidad pm
+                     JOIN mensualidades m ON m.id = pm.mensualidad_id
+                     WHERE pm.pago_id = ?
+                     ORDER BY m.anio ASC, m.mes ASC";
+        $listaMeses = Database::fetchAll($sqlMeses, [$this->id]);
+        $result['meses_pagados_texto'] = self::formatearRangoMeses($listaMeses);
 
         // Obtener controles asociados
         $sqlControles = "SELECT STRING_AGG(numero_control_completo, ', ' ORDER BY numero_control_completo) as controles

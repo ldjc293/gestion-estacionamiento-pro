@@ -80,9 +80,21 @@ class PDFHelper
         $montoUSD = formatUSD($datos['monto_usd']);
         $montoBs = formatBs($datos['monto_bs']);
         $tasaCambio = number_format($datos['tasa_cambio'], 2, ',', '.');
-        $monedaPago = MONEDAS_PAGO[$datos['moneda_pago']] ?? $datos['moneda_pago'];
-        $mesesPagados = $datos['meses_pagados'];
+        
+        $mapFormaPago = [
+            'bs_pago_movil' => 'Pago Móvil (Bs)',
+            'bs_transferencia' => 'Transferencia Bancaria (Bs)',
+            'bs_efectivo' => 'Efectivo en Bolívares (Bs)',
+            'usd_efectivo' => 'Efectivo en Dólares ($)',
+            'usd_zelle' => 'Zelle ($)',
+            'pago_movil' => 'Pago Móvil',
+            'transferencia' => 'Transferencia Bancaria',
+            'efectivo' => 'Efectivo'
+        ];
+        $monedaPago = $mapFormaPago[$datos['moneda_pago']] ?? (MONEDAS_PAGO[$datos['moneda_pago']] ?? $datos['moneda_pago']);
+        $mesesPagados = !empty($datos['meses_pagados_texto']) ? $datos['meses_pagados_texto'] : $datos['meses_pagados'];
         $controles = $datos['controles'] ?? 'N/A';
+        $referencia = !empty($datos['referencia']) ? $datos['referencia'] : 'N/A';
 
         // Datos opcionales
         $esReconexion = $datos['es_reconexion'] ?? false;
@@ -279,12 +291,20 @@ class PDFHelper
             <h3>Detalles del Pago</h3>
             <table>
                 <tr>
+                    <td>Número de Comprobante / N° Referencia:</td>
+                    <td>$referencia</td>
+                </tr>
+                <tr>
                     <td>Meses Pagados:</td>
                     <td>$mesesPagados</td>
                 </tr>
                 <tr>
                     <td>Forma de Pago:</td>
                     <td>$monedaPago</td>
+                </tr>
+                <tr>
+                    <td>Monto Pagado:</td>
+                    <td>$montoBs ($montoUSD)</td>
                 </tr>
                 <tr>
                     <td>Tasa de Cambio BCV:</td>

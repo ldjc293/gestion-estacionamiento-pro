@@ -406,7 +406,7 @@ class ClienteController
             return;
         }
 
-        if ($pago->estado !== 'aprobado') {
+        if ($pago->estado_comprobante !== 'aprobado' && $pago->estado_comprobante !== 'no_aplica') {
             $_SESSION['error'] = 'Solo se pueden descargar recibos de pagos aprobados';
             redirect('cliente/ver-pago?id=' . $pagoId);
             return;

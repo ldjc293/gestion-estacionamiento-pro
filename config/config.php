@@ -402,7 +402,7 @@ function formatDate(string $date, string $format = 'd/m/Y'): string
  */
 function formatDateTime(string $datetime): string
 {
-    return date('d/m/Y H:i:s', strtotime($datetime));
+    return date('d/m/Y H:i', strtotime($datetime));
 }
 
 /**
