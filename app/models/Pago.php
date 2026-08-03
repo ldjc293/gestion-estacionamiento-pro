@@ -430,7 +430,10 @@ class Pago
                     u.nombre_completo as cliente_nombre,
                     CONCAT(a.bloque, '-', a.escalera, '-', a.piso, '-', a.numero_apartamento) as apartamento,
                     t.tasa_usd_bs as tasa_cambio,
-                    operador.nombre_completo as operador_nombre,
+                    op.nombre_completo as operador_nombre,
+                    op.rol as operador_rol,
+                    reg.nombre_completo as registrador_nombre,
+                    reg.rol as registrador_rol,
                     STRING_AGG(
                         m.mes || '/' || m.anio,
                         ', ' ORDER BY m.anio, m.mes
@@ -441,13 +444,23 @@ class Pago
                 JOIN usuarios u ON u.id = au.usuario_id
                 JOIN apartamentos a ON a.id = au.apartamento_id
                 LEFT JOIN tasa_cambio_bcv t ON t.id = p.tasa_cambio_id
-                LEFT JOIN usuarios operador ON operador.id = p.registrado_por
+                LEFT JOIN usuarios op ON op.id = p.aprobado_por
+                LEFT JOIN usuarios reg ON reg.id = p.registrado_por
                 LEFT JOIN pago_mensualidad pm ON pm.pago_id = p.id
                 LEFT JOIN mensualidades m ON m.id = pm.mensualidad_id
                 WHERE p.id = ?
-                GROUP BY p.id, u.id, a.id, t.id, operador.id, au.id";
+                GROUP BY p.id, u.id, a.id, t.id, op.id, reg.id, au.id";
 
         $result = Database::fetchOne($sql, [$this->id]);
+
+        if (!empty($result['operador_nombre'])) {
+            $result['operador_final'] = $result['operador_nombre'];
+        } elseif (!empty($result['registrador_nombre']) && in_array($result['registrador_rol'], ['operador', 'admin'])) {
+            $result['operador_final'] = $result['registrador_nombre'];
+        } else {
+            $result['operador_final'] = 'Administración';
+        }
+        $result['operador_nombre'] = $result['operador_final'];
 
         // Obtener lista de meses estructurados para rango en texto
         $sqlMeses = "SELECT m.mes, m.anio 
