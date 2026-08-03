@@ -154,7 +154,8 @@ class ClienteController
         $monto = floatval($_POST['monto'] ?? 0);
         $metodoPago = $_POST['metodo_pago'] ?? '';
         $referencia = sanitize($_POST['referencia'] ?? '');
-        $fechaPago = $_POST['fecha_pago'] ?? date('Y-m-d');
+        $rawFecha = sanitize($_POST['fecha_pago'] ?? '');
+        $fechaPago = !empty($rawFecha) ? (strlen($rawFecha) === 10 ? $rawFecha . ' ' . date('H:i:s') : $rawFecha) : date('Y-m-d H:i:s');
         $mensualidadesSeleccionadas = $_POST['mensualidades'] ?? [];
 
         // Validaciones

@@ -138,6 +138,11 @@ class Pago
                 }
             }
 
+            $fechaPagoFinal = !empty($data['fecha_pago']) ? trim($data['fecha_pago']) : date('Y-m-d H:i:s');
+            if (strlen($fechaPagoFinal) === 10) {
+                $fechaPagoFinal .= ' ' . date('H:i:s');
+            }
+
             $params = [
                 $data['apartamento_usuario_id'],
                 $numeroRecibo,
@@ -145,7 +150,7 @@ class Pago
                 $montoCalculadoBS,   // Usar monto calculado dinámicamente
                 $tasaId,
                 $data['moneda_pago'],
-                $data['fecha_pago'] ?? date('Y-m-d H:i:s'),
+                $fechaPagoFinal,
                 $data['comprobante_ruta'] ?? null,
                 $estadoComprobante,
                 $data['registrado_por'],
