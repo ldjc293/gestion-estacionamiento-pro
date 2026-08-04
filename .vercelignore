@@ -1,0 +1,13 @@
+/vendor
+/.env
+/_bmad
+/_bmad-output
+/.kilocodemodes
+/.agent
+/.claude
+/logs
+/cache
+/public/uploads
+/uploads
+.DS_Store
+Thumbs.db

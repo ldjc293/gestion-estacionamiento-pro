@@ -1,5 +1,6 @@
 /vendor
 /.env
+/.env.production
 /_bmad
 /_bmad-output
 /.kilocodemodes
