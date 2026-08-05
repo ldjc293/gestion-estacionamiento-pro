@@ -370,11 +370,12 @@ class DatabaseSessionHandler implements SessionHandlerInterface
     }
 }
 
-// Registrar el manejador de sesiones en base de datos si la sesión no está iniciada
-if (session_status() === PHP_SESSION_NONE) {
-    session_set_save_handler(new DatabaseSessionHandler(), true);
-    register_shutdown_function('session_write_close');
+// Registrar el manejador de sesiones en base de datos
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
 }
+session_set_save_handler(new DatabaseSessionHandler(), true);
+register_shutdown_function('session_write_close');
 
 /**
  * Función helper para obtener la conexión PDO directamente
