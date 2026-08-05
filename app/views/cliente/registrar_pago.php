@@ -232,7 +232,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                                                        name="mensualidades[]"
                                                                        value="<?= $mensualidad->id ?>"
                                                                        id="mens_<?= $mensualidad->id ?>"
-                                                                       data-monto="<?= $mensualidad->monto_usd ?>">
+                                                                       data-monto="<?= $mensualidad->monto_usd ?>"
+                                                                       data-mes-anio="<?= formatearMesAnio($mensualidad->mes_correspondiente) ?>">
                                                                 <label class="form-check-label w-100" for="mens_<?= $mensualidad->id ?>">
                                                                     <div class="ms-2">
                                                                         <div class="fw-bold">
@@ -347,9 +348,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <!-- File Upload -->
                                 <div class="mb-4">
                                     <label class="form-label fw-bold" for="comprobante" id="label-comprobante">
-                                        Comprobante de Pago <span id="req-comprobante" class="text-danger d-none">*</span>
+                                        Comprobante de Pago <span id="req-comprobante" class="text-danger">*</span>
                                     </label>
-                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp">
+                                    <input type="file" class="form-control" name="comprobante" id="comprobante" accept="image/*,application/pdf,.heic,.heif,.webp" required>
                                     <small class="text-muted">Formatos permitidos: Imágenes (JPG, PNG, WEBP, HEIC) o PDF.</small>
                                 </div>
 
@@ -607,7 +608,7 @@ class RegistrarPagoCliente {
         const reqComprobante = document.getElementById('req-comprobante');
 
         const requiereReferencia = (metodoPago === 'transferencia' || metodoPago === 'pago_movil' || (moneda === 'Bs' && metodoPago !== 'efectivo' && metodoPago !== ''));
-        const requiereComprobante = (metodoPago === 'transferencia' || metodoPago === 'pago_movil');
+        const requiereComprobante = true; // Siempre obligatorio
 
         if (referenciaInput) {
             referenciaInput.required = requiereReferencia;
@@ -776,16 +777,8 @@ class RegistrarPagoCliente {
                 }
 
                 if (comprobanteInput && reqComprobante) {
-                    if (esEfectivo) {
-                        comprobanteInput.required = false;
-                        reqComprobante.classList.add('d-none');
-                    } else if (metodo === 'pago_movil' || metodo === 'transferencia') {
-                        comprobanteInput.required = true;
-                        reqComprobante.classList.remove('d-none');
-                    } else {
-                        comprobanteInput.required = false;
-                        reqComprobante.classList.add('d-none');
-                    }
+                    comprobanteInput.required = true;
+                    reqComprobante.classList.remove('d-none');
                 }
             };
 
@@ -820,10 +813,71 @@ class RegistrarPagoCliente {
                 return false;
             }
 
-            const btn = document.getElementById('btnSubmit');
-            if (btn) {
-                this.setButtonLoading(btn, true);
+            if (!form.checkValidity()) {
+                // Permitir que el navegador muestre los mensajes de validación estándar (ej. campo requerido)
+                return;
             }
+
+            // Evitar el envío inmediato para mostrar confirmación
+            e.preventDefault();
+
+            // Extraer meses seleccionados
+            const selectedMonths = [];
+            checkboxes.forEach(cb => {
+                const label = cb.dataset.mesAnio || cb.id;
+                selectedMonths.push(label);
+            });
+
+            const moneda = document.getElementById('moneda')?.value || 'USD';
+            const monto = document.getElementById('monto')?.value || '0';
+            const metodoPago = document.getElementById('metodo_pago');
+            const metodoTexto = metodoPago ? metodoPago.options[metodoPago.selectedIndex].text : '';
+            const referencia = document.getElementById('referencia')?.value || '';
+
+            let mesesHTML = '<ul class="text-start mb-0 small">';
+            selectedMonths.forEach(m => {
+                mesesHTML += `<li>${m}</li>`;
+            });
+            mesesHTML += '</ul>';
+
+            let htmlContent = `
+                <div class="text-start">
+                    <table class="table table-sm table-borderless mb-2 small">
+                        <tbody>
+                            <tr><td class="fw-bold p-0" style="width: 40%;">Método de Pago:</td><td class="p-0">${metodoTexto}</td></tr>
+                            <tr><td class="fw-bold p-0">Monto Reportado:</td><td class="p-0">${monto} ${moneda}</td></tr>
+                            ${referencia ? `<tr><td class="fw-bold p-0">Referencia:</td><td class="p-0">${referencia}</td></tr>` : ''}
+                        </tbody>
+                    </table>
+                    <hr class="my-2">
+                    <p class="fw-bold mb-1 small">Mensualidades a registrar:</p>
+                    ${mesesHTML}
+                    <hr class="my-2">
+                    <p class="text-center small text-muted mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Asegúrese de que el comprobante de pago adjunto sea claro y legible.
+                    </p>
+                </div>
+            `;
+
+            Swal.fire({
+                title: 'Confirmar Registro de Pago',
+                html: htmlContent,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const btn = document.getElementById('btnSubmit');
+                    if (btn) {
+                        this.setButtonLoading(btn, true);
+                    }
+                    form.submit();
+                }
+            });
         });
     }
 

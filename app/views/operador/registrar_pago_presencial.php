@@ -290,10 +290,70 @@ class RegistrarPagoPresencial {
                 return false;
             }
 
-            const btn = document.getElementById('btnSubmit');
-            if (btn) {
-                this.setButtonLoading(btn, true);
+            if (!form.checkValidity()) {
+                return;
             }
+
+            // Evitar el envío inmediato
+            e.preventDefault();
+
+            // Extraer meses seleccionados
+            const selectedMonths = [];
+            checkboxes.forEach(cb => {
+                const label = cb.dataset.mesAnio || cb.id;
+                selectedMonths.push(label);
+            });
+
+            const moneda = monedaSelect?.value || 'USD';
+            const monto = document.getElementById('monto')?.value || '0';
+            const metodoPago = document.getElementById('metodo_pago');
+            const metodoTexto = metodoPago ? metodoPago.options[metodoPago.selectedIndex].text : '';
+            const referencia = referenciaInput?.value || '';
+
+            let mesesHTML = '<ul class="text-start mb-0 small">';
+            selectedMonths.forEach(m => {
+                mesesHTML += `<li>${m}</li>`;
+            });
+            mesesHTML += '</ul>';
+
+            let htmlContent = `
+                <div class="text-start">
+                    <table class="table table-sm table-borderless mb-2 small">
+                        <tbody>
+                            <tr><td class="fw-bold p-0" style="width: 40%;">Método de Pago:</td><td class="p-0">${metodoTexto}</td></tr>
+                            <tr><td class="fw-bold p-0">Monto Reportado:</td><td class="p-0">${monto} ${moneda}</td></tr>
+                            ${referencia ? `<tr><td class="fw-bold p-0">Referencia:</td><td class="p-0">${referencia}</td></tr>` : ''}
+                        </tbody>
+                    </table>
+                    <hr class="my-2">
+                    <p class="fw-bold mb-1 small">Mensualidades a registrar:</p>
+                    ${mesesHTML}
+                    <hr class="my-2">
+                    <p class="text-center small text-muted mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Al confirmar, el pago será registrado y aprobado automáticamente.
+                    </p>
+                </div>
+            `;
+
+            Swal.fire({
+                title: 'Confirmar Registro de Pago',
+                html: htmlContent,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Confirmar y Aprobar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const btn = document.getElementById('btnSubmit');
+                    if (btn) {
+                        this.setButtonLoading(btn, true);
+                    }
+                    form.submit();
+                }
+            });
         });
     }
 

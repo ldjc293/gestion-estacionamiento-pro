@@ -209,7 +209,8 @@
                                            value="<?= $mensualidad->id ?>"
                                            id="mens_<?= $mensualidad->id ?>"
                                            data-monto="<?= $montoDinamicoUSD ?>"
-                                           data-monto-bs="<?= $montoDinamicoBS ?>">
+                                           data-monto-bs="<?= $montoDinamicoBS ?>"
+                                           data-mes-anio="<?= formatearMesAnio($mensualidad->mes_correspondiente) ?>">
                                     <label class="form-check-label w-100" for="mens_<?= $mensualidad->id ?>">
                                         <div class="ms-2">
                                             <div class="fw-bold">

@@ -124,11 +124,20 @@ define('ROOT_PATH', dirname(__DIR__));
 define('APP_PATH', ROOT_PATH . '/app');
 define('CONFIG_PATH', ROOT_PATH . '/config');
 define('PUBLIC_PATH', ROOT_PATH . '/public');
-define('UPLOAD_PATH', PUBLIC_PATH . '/uploads');
-define('COMPROBANTES_PATH', UPLOAD_PATH . '/comprobantes');
-define('RECIBOS_PATH', UPLOAD_PATH . '/recibos');
-define('GASTOS_PATH', UPLOAD_PATH . '/gastos');
-define('LOGS_PATH', ROOT_PATH . '/logs');
+
+if (getenv('VERCEL')) {
+    define('UPLOAD_PATH', '/tmp/uploads');
+    define('COMPROBANTES_PATH', '/tmp/uploads/comprobantes');
+    define('RECIBOS_PATH', '/tmp/uploads/recibos');
+    define('GASTOS_PATH', '/tmp/uploads/gastos');
+    define('LOGS_PATH', '/tmp/logs');
+} else {
+    define('UPLOAD_PATH', PUBLIC_PATH . '/uploads');
+    define('COMPROBANTES_PATH', UPLOAD_PATH . '/comprobantes');
+    define('RECIBOS_PATH', UPLOAD_PATH . '/recibos');
+    define('GASTOS_PATH', UPLOAD_PATH . '/gastos');
+    define('LOGS_PATH', ROOT_PATH . '/logs');
+}
 
 // Crear directorios si no existen
 if (!is_dir(COMPROBANTES_PATH)) mkdir(COMPROBANTES_PATH, 0755, true);

@@ -218,17 +218,18 @@ class ClienteController
             }
         }
 
-        // Validar que se suba comprobante y referencia para métodos que lo requieren
+        // El comprobante es obligatorio para todos los métodos de pago
+        if (!isset($_FILES['comprobante']) || $_FILES['comprobante']['error'] === UPLOAD_ERR_NO_FILE) {
+            $_SESSION['error'] = 'El comprobante de pago es obligatorio.';
+            redirect('cliente/registrar-pago');
+            return;
+        }
+
+        // El número de referencia es obligatorio solo para transferencia y pago móvil
         $metodosConComprobante = ['transferencia', 'pago_movil'];
         if (in_array($metodoPago, $metodosConComprobante)) {
             if (empty($referencia)) {
                 $_SESSION['error'] = 'El número de referencia es obligatorio para el método de pago seleccionado.';
-                redirect('cliente/registrar-pago');
-                return;
-            }
-
-            if (!isset($_FILES['comprobante']) || $_FILES['comprobante']['error'] === UPLOAD_ERR_NO_FILE) {
-                $_SESSION['error'] = 'Debe subir el comprobante de pago para el método seleccionado';
                 redirect('cliente/registrar-pago');
                 return;
             }
