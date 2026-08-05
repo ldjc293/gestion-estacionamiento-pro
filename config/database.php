@@ -302,6 +302,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
             )");
             return true;
         } catch (Exception $e) {
+            error_log("[SessionHandler ERROR] open: " . $e->getMessage());
             return true;
         }
     }
@@ -317,6 +318,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
             $row = Database::fetchOne("SELECT data FROM sessions WHERE id = ?", [$id]);
             return $row ? ($row['data'] ?? '') : '';
         } catch (Exception $e) {
+            error_log("[SessionHandler ERROR] read: " . $e->getMessage());
             return '';
         }
     }
@@ -333,6 +335,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
             }
             return true;
         } catch (Exception $e) {
+            error_log("[SessionHandler ERROR] write: " . $e->getMessage());
             return false;
         }
     }
@@ -343,6 +346,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
             Database::execute("DELETE FROM sessions WHERE id = ?", [$id]);
             return true;
         } catch (Exception $e) {
+            error_log("[SessionHandler ERROR] destroy: " . $e->getMessage());
             return false;
         }
     }
@@ -353,6 +357,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
             $old = time() - $maxlifetime;
             return Database::execute("DELETE FROM sessions WHERE timestamp < ?", [$old]);
         } catch (Exception $e) {
+            error_log("[SessionHandler ERROR] gc: " . $e->getMessage());
             return false;
         }
     }
