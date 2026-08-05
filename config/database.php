@@ -24,12 +24,17 @@ class Database
 {
     private static ?PDO $instance = null;
     private static bool $testMode = false;
+    private static ?array $cachedConfig = null;
 
     /**
      * Configuración de la base de datos desde .env
      */
     private static function getConfig(): array
     {
+        if (self::$cachedConfig !== null) {
+            return self::$cachedConfig;
+        }
+
         if (self::$testMode) {
             return [
                 'driver'  => 'sqlite',
@@ -55,7 +60,7 @@ class Database
             $pass = 'Impulso$$29';
         }
 
-        return [
+        self::$cachedConfig = [
             'driver'  => $getEnv('DB_CONNECTION', 'pgsql'),
             'host'    => $host,
             'port'    => $getEnv('DB_PORT', '6543'),
@@ -64,6 +69,8 @@ class Database
             'pass'    => $pass,
             'charset' => $getEnv('DB_CHARSET', 'utf8'),
         ];
+
+        return self::$cachedConfig;
     }
 
     /**
@@ -366,6 +373,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface
 // Registrar el manejador de sesiones en base de datos si la sesión no está iniciada
 if (session_status() === PHP_SESSION_NONE) {
     session_set_save_handler(new DatabaseSessionHandler(), true);
+    register_shutdown_function('session_write_close');
 }
 
 /**
