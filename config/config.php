@@ -53,13 +53,21 @@ if (($_ENV['APP_DEBUG'] ?? 'false') === 'true') {
 // IMPORTANTE: Estas configuraciones deben hacerse ANTES de session_start()
 // Si la sesión ya está iniciada, estas configuraciones no tendrán efecto
 if (session_status() === PHP_SESSION_NONE) {
+    $isSecure = false;
     if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos(strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']), 'https') !== false) {
         $_SERVER['HTTPS'] = 'on';
+        $isSecure = true;
+    } elseif (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) {
+        $isSecure = true;
     }
+
     ini_set('session.cookie_httponly', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.cookie_path', '/');
     ini_set('session.cookie_samesite', 'Lax');
+    if ($isSecure) {
+        ini_set('session.cookie_secure', '1');
+    }
     ini_set('session.gc_maxlifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
     ini_set('session.cookie_lifetime', ($_ENV['SESSION_LIFETIME'] ?? 30) * 60);
 }
