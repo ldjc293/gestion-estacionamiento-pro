@@ -1566,28 +1566,86 @@ class ConsultorController
             return null;
         }
 
-        $uploadDir = GASTOS_PATH . '/';
-        if (!is_dir($uploadDir)) {
-            @mkdir($uploadDir, 0777, true);
-        }
-        
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
+        if ($ext === 'jpeg') $ext = 'jpg';
+        $allowed = ['jpg', 'png', 'gif', 'webp', 'pdf', 'heic', 'heif'];
         if (!in_array($ext, $allowed)) {
             writeLog("Error uploadGastoArchivo ({$prefix}): Extensión '$ext' no permitida", 'error');
             return null;
         }
 
-        $nombreArchivo = $prefix . '_' . uniqid() . '.' . ($ext === 'pdf' ? 'pdf' : 'jpg');
-        $rutaDestino = $uploadDir . $nombreArchivo;
-
-        $exito = $this->processImageAndSave($file['tmp_name'], $file['name'], $rutaDestino);
-        if ($exito) {
-            return 'uploads/gastos/' . $nombreArchivo;
+        $tmpPath = $file['tmp_name'];
+        $fileData = @file_get_contents($tmpPath);
+        if (!$fileData) {
+            return null;
         }
 
-        writeLog("Error uploadGastoArchivo ({$prefix}): Falló procesamiento de archivo hacia $rutaDestino", 'error');
-        return null;
+        $uploadDir = GASTOS_PATH . '/';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
+        if ($ext === 'pdf') {
+            $base64 = 'data:application/pdf;base64,' . base64_encode($fileData);
+            $nombreArchivo = $prefix . '_' . uniqid() . '.pdf';
+            @file_put_contents($uploadDir . $nombreArchivo, $fileData);
+            return $base64;
+        }
+
+        // Para imágenes: optimizar y redimensionar
+        $compressedData = null;
+        $mimeType = 'image/jpeg';
+
+        if (function_exists('imagecreatefromstring')) {
+            $image = @imagecreatefromstring($fileData);
+            if ($image) {
+                if (function_exists('exif_read_data')) {
+                    $exif = @exif_read_data($tmpPath);
+                    if (!empty($exif['Orientation'])) {
+                        switch ($exif['Orientation']) {
+                            case 8: $image = imagerotate($image, 90, 0); break;
+                            case 3: $image = imagerotate($image, 180, 0); break;
+                            case 6: $image = imagerotate($image, -90, 0); break;
+                        }
+                    }
+                }
+
+                $origW = imagesx($image);
+                $origH = imagesy($image);
+                $maxDim = 1200;
+
+                if ($origW > $maxDim || $origH > $maxDim) {
+                    if ($origW > $origH) {
+                        $newW = $maxDim;
+                        $newH = intval($origH * ($maxDim / $origW));
+                    } else {
+                        $newH = $maxDim;
+                        $newW = intval($origW * ($maxDim / $origH));
+                    }
+                    $newImg = imagecreatetruecolor($newW, $newH);
+                    imagecopyresampled($newImg, $image, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+                    imagedestroy($image);
+                    $image = $newImg;
+                }
+
+                ob_start();
+                imagejpeg($image, null, 75);
+                $compressedData = ob_get_clean();
+                imagedestroy($image);
+            }
+        }
+
+        if (!$compressedData) {
+            $compressedData = $fileData;
+            if ($ext === 'png') $mimeType = 'image/png';
+            elseif ($ext === 'webp') $mimeType = 'image/webp';
+        }
+
+        // Guardar copia local por respaldo
+        $nombreArchivo = $prefix . '_' . uniqid() . '.jpg';
+        @file_put_contents($uploadDir . $nombreArchivo, $compressedData);
+
+        return 'data:' . $mimeType . ';base64,' . base64_encode($compressedData);
     }
 
     /**

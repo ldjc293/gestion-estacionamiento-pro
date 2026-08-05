@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
             downloadBtn.href = src;
 
             const cleanSrc = src.split('?')[0].toLowerCase();
-            const isPDF = cleanSrc.endsWith('.pdf');
+            const isPDF = cleanSrc.endsWith('.pdf') || src.startsWith('data:application/pdf');
 
             if (isPDF) {
                 modalImgWrapper.classList.add('d-none');
