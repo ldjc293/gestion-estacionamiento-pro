@@ -363,8 +363,8 @@ class DatabaseSessionHandler implements SessionHandlerInterface
     }
 }
 
-// Registrar el manejador de sesiones en base de datos si no estamos en CLI
-if (php_sapi_name() !== 'cli' && session_status() === PHP_SESSION_NONE) {
+// Registrar el manejador de sesiones en base de datos si la sesión no está iniciada
+if (session_status() === PHP_SESSION_NONE) {
     session_set_save_handler(new DatabaseSessionHandler(), true);
 }
 
