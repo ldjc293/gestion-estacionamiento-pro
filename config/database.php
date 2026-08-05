@@ -286,6 +286,84 @@ class Database
 }
 
 /**
+ * Clase DatabaseSessionHandler - Permite guardar las sesiones PHP en la base de datos
+ * para mantener el estado de sesión en entornos Serverless (como Vercel)
+ */
+class DatabaseSessionHandler implements SessionHandlerInterface
+{
+    public function open($savePath, $sessionName): bool
+    {
+        try {
+            // Asegurar que la tabla de sesiones exista
+            Database::execute("CREATE TABLE IF NOT EXISTS sessions (
+                id VARCHAR(255) PRIMARY KEY,
+                data TEXT,
+                timestamp INT NOT NULL
+            )");
+            return true;
+        } catch (Exception $e) {
+            return true;
+        }
+    }
+
+    public function close(): bool
+    {
+        return true;
+    }
+
+    public function read($id): string
+    {
+        try {
+            $row = Database::fetchOne("SELECT data FROM sessions WHERE id = ?", [$id]);
+            return $row ? ($row['data'] ?? '') : '';
+        } catch (Exception $e) {
+            return '';
+        }
+    }
+
+    public function write($id, $data): bool
+    {
+        try {
+            $timestamp = time();
+            $exists = Database::fetchOne("SELECT 1 FROM sessions WHERE id = ?", [$id]);
+            if ($exists) {
+                Database::execute("UPDATE sessions SET data = ?, timestamp = ? WHERE id = ?", [$data, $timestamp, $id]);
+            } else {
+                Database::execute("INSERT INTO sessions (id, data, timestamp) VALUES (?, ?, ?)", [$id, $data, $timestamp]);
+            }
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    public function destroy($id): bool
+    {
+        try {
+            Database::execute("DELETE FROM sessions WHERE id = ?", [$id]);
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    public function gc($maxlifetime): int|false
+    {
+        try {
+            $old = time() - $maxlifetime;
+            return Database::execute("DELETE FROM sessions WHERE timestamp < ?", [$old]);
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+}
+
+// Registrar el manejador de sesiones en base de datos si no estamos en CLI
+if (php_sapi_name() !== 'cli' && session_status() === PHP_SESSION_NONE) {
+    session_set_save_handler(new DatabaseSessionHandler(), true);
+}
+
+/**
  * Función helper para obtener la conexión PDO directamente
  *
  * @return PDO
@@ -330,6 +408,7 @@ function db_fetch_all(string $sql, array $params = []): array
 {
     return Database::fetchAll($sql, $params);
 }
+
 
 // Ejemplo de uso:
 /*
