@@ -333,6 +333,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <input type="date"
                                            class="form-control"
                                            name="fecha_pago"
+                                           id="fecha_pago"
                                            value="<?= date('Y-m-d') ?>"
                                            max="<?= date('Y-m-d') ?>"
                                            required>
@@ -584,6 +585,12 @@ class RegistrarPagoCliente {
         this.setupFormValidation();
         this.setupSelectionButtons();
         this.setupDynamicRequirements();
+
+        // Escuchar cambios en la fecha del pago para actualizar la tasa de cambio
+        const dateInput = document.getElementById('fecha_pago');
+        if (dateInput) {
+            dateInput.addEventListener('change', () => this.actualizarTasaPorFecha(dateInput.value));
+        }
     }
 
     setupDynamicRequirements() {
@@ -1034,6 +1041,30 @@ class RegistrarPagoCliente {
             }
         } else {
             divConversion.textContent = '';
+        }
+    }
+
+    async actualizarTasaPorFecha(fecha) {
+        if (!fecha) return;
+
+        try {
+            const response = await fetch(`${baseUrl}/api/get-tasa-por-fecha?fecha=${fecha}`);
+            const data = await response.json();
+            if (data.success && data.tasa) {
+                this.tasaBCV = parseFloat(data.tasa);
+
+                // Actualizar visualmente la tasa en la tarjeta de información
+                const tasaElement = document.getElementById('tasaBCV');
+                if (tasaElement) {
+                    tasaElement.textContent = this.tasaBCV.toFixed(2) + " Bs";
+                }
+
+                // Recalcular conversión y totales
+                this.calcularTotal();
+                this.actualizarConversion();
+            }
+        } catch (error) {
+            console.error("Error al actualizar la tasa por fecha:", error);
         }
     }
 

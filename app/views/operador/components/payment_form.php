@@ -309,6 +309,7 @@
         <input type="date"
                class="form-control"
                name="fecha_pago"
+               id="fecha_pago"
                value="<?= date('Y-m-d') ?>"
                max="<?= date('Y-m-d') ?>"
                required>

@@ -230,4 +230,42 @@ class ApiController
             'pago' => $pago
         ]);
     }
+
+    /**
+     * Obtener tasa de cambio por fecha (AJAX)
+     */
+    public function getTasaPorFecha(): void
+    {
+        header('Content-Type: application/json');
+        
+        $fecha = $_GET['fecha'] ?? '';
+        if (empty($fecha)) {
+            echo json_encode(['success' => false, 'message' => 'Fecha es requerida']);
+            return;
+        }
+
+        // Normalizar fecha a Y-m-d
+        $fecha = date('Y-m-d', strtotime($fecha));
+
+        // 1. Intentar obtener la tasa registrada para el mismo día de pago
+        $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv WHERE DATE(fecha_registro) = DATE(?) ORDER BY fecha_registro DESC LIMIT 1";
+        $result = Database::fetchOne($sql, [$fecha]);
+
+        // 2. Si no hay tasa registrada ese mismo día, buscar la tasa más reciente anterior a la fecha de pago
+        if (!$result) {
+            $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv WHERE fecha_registro <= ? ORDER BY fecha_registro DESC LIMIT 1";
+            $result = Database::fetchOne($sql, [$fecha . ' 23:59:59']);
+        }
+
+        // 3. Fallback: buscar la tasa más reciente en general
+        if (!$result) {
+            $sql = "SELECT tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+            $result = Database::fetchOne($sql);
+        }
+
+        echo json_encode([
+            'success' => true,
+            'tasa' => $result ? floatval($result['tasa_usd_bs']) : 36.50
+        ]);
+    }
 }

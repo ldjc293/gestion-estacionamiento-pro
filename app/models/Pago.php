@@ -103,9 +103,30 @@ class Pago
                 $montoCalculadoUSD = $tarifaActual->monto_mensual_usd * $cantidadControles * $cantidadMensualidades;
             }
 
-            // Obtener tasa BCV actual
-            $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
-            $tasaData = Database::fetchOne($sqlTasa);
+            $fechaPagoFinal = !empty($data['fecha_pago']) ? trim($data['fecha_pago']) : date('Y-m-d H:i:00');
+            if (strlen($fechaPagoFinal) === 10) {
+                $fechaPagoFinal .= ' ' . date('H:i:00');
+            }
+
+            // Normalizar fecha para búsqueda de tasa (Y-m-d)
+            $fechaSoloDia = date('Y-m-d', strtotime($fechaPagoFinal));
+
+            // 1. Intentar obtener la tasa registrada para el mismo día de pago
+            $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv WHERE DATE(fecha_registro) = DATE(?) ORDER BY fecha_registro DESC LIMIT 1";
+            $tasaData = Database::fetchOne($sqlTasa, [$fechaSoloDia]);
+
+            // 2. Si no hay tasa registrada ese mismo día, buscar la tasa más reciente anterior o igual a la fecha de pago
+            if (!$tasaData) {
+                $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv WHERE fecha_registro <= ? ORDER BY fecha_registro DESC LIMIT 1";
+                $tasaData = Database::fetchOne($sqlTasa, [$fechaSoloDia . ' 23:59:59']);
+            }
+
+            // 3. Fallback: buscar la tasa más reciente en general
+            if (!$tasaData) {
+                $sqlTasa = "SELECT id, tasa_usd_bs FROM tasa_cambio_bcv ORDER BY fecha_registro DESC LIMIT 1";
+                $tasaData = Database::fetchOne($sqlTasa);
+            }
+
             $tasaBCV = $tasaData ? (float)$tasaData['tasa_usd_bs'] : 36.40;
             $tasaId = $tasaData ? $tasaData['id'] : null;
 
@@ -136,11 +157,6 @@ class Pago
                 if (in_array($data['moneda_pago'], ['bs_transferencia', 'bs_pago_movil']) && !empty($data['comprobante_ruta'])) {
                     $estadoComprobante = 'pendiente';
                 }
-            }
-
-            $fechaPagoFinal = !empty($data['fecha_pago']) ? trim($data['fecha_pago']) : date('Y-m-d H:i:00');
-            if (strlen($fechaPagoFinal) === 10) {
-                $fechaPagoFinal .= ' ' . date('H:i:00');
             }
 
             $params = [

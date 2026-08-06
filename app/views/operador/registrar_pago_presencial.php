@@ -123,6 +123,12 @@ class RegistrarPagoPresencial {
                 return false;
             }
         }, true);
+
+        // Escuchar cambios en la fecha del pago para actualizar la tasa de cambio
+        const dateInput = document.getElementById('fecha_pago');
+        if (dateInput) {
+            dateInput.addEventListener('change', () => this.actualizarTasaPorFecha(dateInput.value));
+        }
     }
 
     setupTotalCalculation() {
@@ -602,6 +608,24 @@ class RegistrarPagoPresencial {
             }
         } else {
             divConversion.textContent = '';
+        }
+    }
+
+    async actualizarTasaPorFecha(fecha) {
+        if (!fecha) return;
+
+        try {
+            const response = await fetch(`${baseUrl}/api/get-tasa-por-fecha?fecha=${fecha}`);
+            const data = await response.json();
+            if (data.success && data.tasa) {
+                this.setTasaBCV(parseFloat(data.tasa));
+                
+                // Recalcular totales y conversión
+                this.calcularTotal();
+                this.actualizarConversion();
+            }
+        } catch (error) {
+            console.error("Error al actualizar la tasa por fecha:", error);
         }
     }
 
