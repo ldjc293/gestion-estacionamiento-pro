@@ -2570,11 +2570,20 @@ class OperadorController
             @mkdir($uploadDir, 0777, true);
         }
 
+        require_once __DIR__ . '/../helpers/SupabaseStorageHelper.php';
+
         if ($extension === 'pdf') {
-            $base64 = 'data:application/pdf;base64,' . base64_encode($fileData);
             $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.pdf';
             @file_put_contents($uploadDir . $nombreArchivo, $fileData);
-            return $base64;
+
+            // Intentar subir a Supabase Storage
+            $supabaseUrl = SupabaseStorageHelper::upload($fileData, $nombreArchivo, 'application/pdf');
+            if ($supabaseUrl) {
+                return $supabaseUrl;
+            }
+
+            // Fallback a base64
+            return 'data:application/pdf;base64,' . base64_encode($fileData);
         }
 
         // Para imágenes: optimizar y redimensionar
@@ -2630,6 +2639,12 @@ class OperadorController
         $nombreArchivo = 'comp_' . $usuarioId . '_' . time() . '.jpg';
         @file_put_contents($uploadDir . $nombreArchivo, $compressedData);
 
+        // Intentar subir a Supabase Storage
+        $supabaseUrl = SupabaseStorageHelper::upload($compressedData, $nombreArchivo, $mimeType);
+        if ($supabaseUrl) {
+            return $supabaseUrl;
+        }
+
         return 'data:' . $mimeType . ';base64,' . base64_encode($compressedData);
     }
 
@@ -2659,11 +2674,20 @@ class OperadorController
             @mkdir($uploadDir, 0777, true);
         }
 
+        require_once __DIR__ . '/../helpers/SupabaseStorageHelper.php';
+
         if ($ext === 'pdf') {
-            $base64 = 'data:application/pdf;base64,' . base64_encode($fileData);
             $nombreArchivo = $prefix . '_' . uniqid() . '.pdf';
             @file_put_contents($uploadDir . $nombreArchivo, $fileData);
-            return $base64;
+
+            // Intentar subir a Supabase Storage
+            $supabaseUrl = SupabaseStorageHelper::upload($fileData, $nombreArchivo, 'application/pdf');
+            if ($supabaseUrl) {
+                return $supabaseUrl;
+            }
+
+            // Fallback a base64
+            return 'data:application/pdf;base64,' . base64_encode($fileData);
         }
 
         // Para imágenes: optimizar y redimensionar
@@ -2718,6 +2742,12 @@ class OperadorController
         // Guardar copia local por respaldo
         $nombreArchivo = $prefix . '_' . uniqid() . '.jpg';
         @file_put_contents($uploadDir . $nombreArchivo, $compressedData);
+
+        // Intentar subir a Supabase Storage
+        $supabaseUrl = SupabaseStorageHelper::upload($compressedData, $nombreArchivo, $mimeType);
+        if ($supabaseUrl) {
+            return $supabaseUrl;
+        }
 
         return 'data:' . $mimeType . ';base64,' . base64_encode($compressedData);
     }
