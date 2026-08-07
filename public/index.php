@@ -59,7 +59,11 @@ if (empty($url) && isset($_SERVER['REQUEST_URI'])) {
     $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '';
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $baseDir = dirname($scriptName);
-    if ($baseDir !== '/' && $baseDir !== '\\' && $baseDir !== '.') {
+    $baseDir = str_replace('\\', '/', $baseDir);
+    if ($baseDir === '/api') {
+        $baseDir = '';
+    }
+    if ($baseDir !== '/' && $baseDir !== '' && $baseDir !== '.') {
         $requestUri = preg_replace('#^' . preg_quote($baseDir, '#') . '#', '', $requestUri);
     }
     $url = trim($requestUri, '/');

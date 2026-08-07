@@ -109,6 +109,9 @@ if (!empty($_ENV['APP_URL']) && $_ENV['APP_URL'] !== 'http://localhost/controlde
     if ($basePath === '/public' || substr($basePath, -7) === '/public') {
         $basePath = substr($basePath, 0, -7);
     }
+    if ($basePath === '/api' || $basePath === '/api/') {
+        $basePath = '';
+    }
     $basePath = rtrim($basePath, '/');
     define('APP_URL', $protocol . '://' . $host . $basePath);
 } else {
