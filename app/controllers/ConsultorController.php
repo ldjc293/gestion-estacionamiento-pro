@@ -11,6 +11,9 @@ require_once __DIR__ . '/../models/Mensualidad.php';
 require_once __DIR__ . '/../models/Control.php';
 require_once __DIR__ . '/../models/Apartamento.php';
 
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class ConsultorController
 {
     /**
@@ -2200,17 +2203,17 @@ class ConsultorController
                 <tbody>
                     <tr>
                         <td>
-                            <strong style="font-size: 13pt;">' . formatUSD($resumen['ingresos']['USD_equiv']) . '</strong><br>
-                            <span style="font-size: 8pt; color: #64748b;">Efectivo USD: ' . formatUSD($resumen['ingresos']['USD_efectivo']) . '</span><br>
-                            <span style="font-size: 8pt; color: #64748b;">Digital Bs: ' . formatBs($resumen['ingresos']['Bs_digital']) . '</span>
+                            <strong style="font-size: 13pt;">' . formatUSD(floatval($resumen['ingresos']['USD_equiv'])) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Efectivo USD: ' . formatUSD(floatval($resumen['ingresos']['USD_efectivo'])) . '</span><br>
+                            <span style="font-size: 8pt; color: #64748b;">Digital Bs: ' . formatBs(floatval($resumen['ingresos']['Bs_digital'])) . '</span>
                         </td>
                         <td>
-                            <strong style="font-size: 13pt;">' . formatUSD($resumen['egresos']['USD']) . '</strong><br>
-                            <span style="font-size: 8pt; color: #64748b;">Gastos en Bs: ' . formatBs($resumen['egresos']['Bs']) . '</span>
+                            <strong style="font-size: 13pt;">' . formatUSD(floatval($resumen['egresos']['USD'])) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Gastos en Bs: ' . formatBs(floatval($resumen['egresos']['Bs'])) . '</span>
                         </td>
                         <td>
-                            <strong style="font-size: 13pt;" class="' . ($isPositive ? 'positive-balance' : 'negative-balance') . '">' . formatUSD($balanceUSD) . '</strong><br>
-                            <span style="font-size: 8pt; color: #64748b;">Balance Bs: ' . formatBs($balanceBs) . '</span><br>
+                            <strong style="font-size: 13pt;" class="' . ($isPositive ? 'positive-balance' : 'negative-balance') . '">' . formatUSD(floatval($balanceUSD)) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Balance Bs: ' . formatBs(floatval($balanceBs)) . '</span><br>
                             <span class="badge ' . ($isPositive ? 'badge-success' : 'badge-danger') . '">' . ($isPositive ? 'Superávit' : 'Déficit') . '</span>
                         </td>
                     </tr>
@@ -2242,7 +2245,7 @@ class ConsultorController
                                             <span style="font-size: 7pt; color: #64748b;">' . ucfirst($g->metodo_pago) . '</span>
                                         </td>
                                         <td class="text-end ' . ($g->moneda === 'USD' ? 'text-success' : 'text-primary') . '">
-                                            ' . ($g->moneda === 'USD' ? formatUSD($g->monto) : formatBs($g->monto)) . '
+                                            ' . ($g->moneda === 'USD' ? formatUSD(floatval($g->monto)) : formatBs(floatval($g->monto))) . '
                                         </td>
                                     </tr>';
                                 }
@@ -2274,7 +2277,7 @@ class ConsultorController
                                             <span style="font-size: 7pt; color: #64748b;">Apto: ' . $i['apartamento'] . '</span>
                                         </td>
                                         <td class="text-end text-success">
-                                            ' . ($i['moneda_pago'] === 'usd_efectivo' ? formatUSD($i['monto_usd']) : formatBs($i['monto_bs'])) . '
+                                            ' . ($i['moneda_pago'] === 'usd_efectivo' ? formatUSD(floatval($i['monto_usd'])) : formatBs(floatval($i['monto_bs']))) . '
                                         </td>
                                     </tr>';
                                 }
@@ -2294,24 +2297,25 @@ class ConsultorController
         ';
 
         // Configurar DomPDF
-        $options = new \Dompdf\Options();
+        $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
         $options->set('defaultFont', 'helvetica');
 
-        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('letter', 'portrait');
         $dompdf->render();
 
         $filename = 'relacion_financiera_' . date('Ymd_His') . '.pdf';
 
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: private, max-age=0, must-revalidate');
-        header('Pragma: public');
+        // Limpiar cualquier búfer de salida para evitar corrupción del PDF
+        if (ob_get_length()) {
+            ob_clean();
+        }
 
-        echo $dompdf->output();
+        // Transmitir el PDF directamente al navegador
+        $dompdf->stream($filename, ["Attachment" => true]);
         exit;
     }
 }
