@@ -1981,5 +1981,337 @@ class ConsultorController
         echo json_encode($res);
         exit;
     }
-}
 
+    /**
+     * Descargar reporte de relación ingresos/egresos en PDF
+     */
+    public function descargarReporteGastosPdf(): void
+    {
+        $usuario = $this->checkAuth();
+        if (!$usuario) return;
+
+        $tipoFiltro = $_GET['tipo_filtro'] ?? 'mensual';
+        $mes = intval($_GET['mes'] ?? date('m'));
+        $anio = intval($_GET['anio'] ?? date('Y'));
+        $trimestre = intval($_GET['trimestre'] ?? ceil(date('m') / 3));
+        $fechaInicio = $_GET['fecha_inicio'] ?? date('Y-m-01');
+        $fechaFin = $_GET['fecha_fin'] ?? date('Y-m-t');
+
+        // Calcular rangos de fechas (mismo que en reporteGastos)
+        if ($tipoFiltro === 'mensual') {
+            $fechaInicio = sprintf('%04d-%02d-01', $anio, $mes);
+            $fechaFin = date('Y-m-t', strtotime($fechaInicio));
+        } elseif ($tipoFiltro === 'trimestral') {
+            if ($trimestre === 1) {
+                $fechaInicio = "$anio-01-01";
+                $fechaFin = "$anio-03-31";
+            } elseif ($trimestre === 2) {
+                $fechaInicio = "$anio-04-01";
+                $fechaFin = "$anio-06-30";
+            } elseif ($trimestre === 3) {
+                $fechaInicio = "$anio-07-01";
+                $fechaFin = "$anio-09-30";
+            } else {
+                $fechaInicio = "$anio-10-01";
+                $fechaFin = "$anio-12-31";
+            }
+        } elseif ($tipoFiltro === 'anual') {
+            $fechaInicio = "$anio-01-01";
+            $fechaFin = "$anio-12-31";
+        }
+
+        require_once __DIR__ . '/../models/Gasto.php';
+        $resumen = Gasto::getResumenFinanciero($fechaInicio, $fechaFin);
+
+        // Desglose de Egresos (Gastos) en el rango
+        $gastos = Gasto::getAllConFiltros([
+            'fecha_inicio' => $fechaInicio,
+            'fecha_fin' => $fechaFin
+        ]);
+
+        // Desglose de Ingresos (Pagos aprobados) en el rango
+        $sqlPagos = "SELECT p.*, u.nombre_completo as cliente_nombre,
+                            CONCAT(a.bloque, '-', a.numero_apartamento) as apartamento
+                     FROM public.pagos p
+                     JOIN public.apartamento_usuario au ON au.id = p.apartamento_usuario_id
+                     JOIN public.usuarios u ON u.id = au.usuario_id
+                     JOIN public.apartamentos a ON a.id = au.apartamento_id
+                     WHERE p.estado_comprobante IN ('aprobado', 'no_aplica')
+                       AND DATE(p.fecha_pago) BETWEEN ? AND ?
+                     ORDER BY p.fecha_pago DESC";
+        $ingresosDetalle = Database::fetchAll($sqlPagos, [$fechaInicio, $fechaFin]);
+
+        // Calcular balances
+        $balanceUSD = $resumen['ingresos']['USD_equiv'] - $resumen['egresos']['USD'];
+        $balanceBs = $resumen['ingresos']['Bs_equiv'] - $resumen['egresos']['Bs'];
+        $isPositive = $balanceUSD >= 0;
+
+        // Formatear rango para mostrar en el reporte
+        $rangoTexto = "";
+        if ($tipoFiltro === 'mensual') {
+            $mesesNombres = [
+                1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+                5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+                9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+            ];
+            $rangoTexto = "Mensual: " . ($mesesNombres[$mes] ?? '') . " " . $anio;
+        } elseif ($tipoFiltro === 'trimestral') {
+            $rangoTexto = "Trimestre: " . $trimestre . "° Trimestre de " . $anio;
+        } elseif ($tipoFiltro === 'anual') {
+            $rangoTexto = "Anual: Año " . $anio;
+        } else {
+            $rangoTexto = "Rango personalizado: del " . date('d/m/Y', strtotime($fechaInicio)) . " al " . date('d/m/Y', strtotime($fechaFin));
+        }
+
+        // Construir HTML del PDF
+        $html = '
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relación de Ingresos y Egresos</title>
+            <style>
+                body {
+                    font-family: \'Helvetica\', \'Arial\', sans-serif;
+                    font-size: 9pt;
+                    color: #334155;
+                    line-height: 1.4;
+                    margin: 20px;
+                }
+                .header-table {
+                    width: 100%;
+                    border-bottom: 2px solid #3b82f6;
+                    padding-bottom: 12px;
+                    margin-bottom: 20px;
+                }
+                .title {
+                    font-size: 16pt;
+                    font-weight: bold;
+                    color: #1e3a8a;
+                    margin: 0;
+                }
+                .subtitle {
+                    font-size: 9pt;
+                    color: #64748b;
+                    margin-top: 4px;
+                }
+                .summary-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 25px;
+                }
+                .summary-table th {
+                    background-color: #f1f5f9;
+                    color: #1e293b;
+                    text-align: left;
+                    padding: 8px 12px;
+                    font-size: 9pt;
+                    border: 1px solid #cbd5e1;
+                }
+                .summary-table td {
+                    padding: 10px 12px;
+                    border: 1px solid #cbd5e1;
+                }
+                .positive-balance {
+                    color: #15803d;
+                    font-weight: bold;
+                }
+                .negative-balance {
+                    color: #b91c1c;
+                    font-weight: bold;
+                }
+                .section-title {
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: #0f172a;
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                    border-bottom: 1px solid #cbd5e1;
+                    padding-bottom: 4px;
+                }
+                .data-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                .data-table th {
+                    background-color: #f8fafc;
+                    border-bottom: 2px solid #cbd5e1;
+                    text-align: left;
+                    padding: 6px 8px;
+                    font-size: 8pt;
+                    font-weight: bold;
+                    color: #475569;
+                }
+                .data-table td {
+                    padding: 6px 8px;
+                    border-bottom: 1px solid #e2e8f0;
+                    font-size: 8pt;
+                }
+                .text-end {
+                    text-align: right;
+                }
+                .text-success { color: #16a34a; }
+                .text-danger { color: #dc2626; }
+                .text-primary { color: #2563eb; }
+                .badge {
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 7pt;
+                    font-weight: bold;
+                    color: white;
+                }
+                .badge-success { background-color: #16a34a; }
+                .badge-danger { background-color: #dc2626; }
+                .footer {
+                    margin-top: 30px;
+                    text-align: center;
+                    font-size: 8pt;
+                    color: #94a3b8;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 10px;
+                }
+            </style>
+        </head>
+        <body>
+            <table class="header-table">
+                <tr>
+                    <td>
+                        <div class="title">' . ESTACIONAMIENTO_NOMBRE . '</div>
+                        <div class="subtitle">Relación Financiera (Ingresos vs. Egresos)</div>
+                        <div class="subtitle"><strong>Rango de consulta:</strong> ' . $rangoTexto . '</div>
+                    </td>
+                    <td class="text-end" style="vertical-align: bottom; font-size: 8pt; color: #64748b;">
+                        Generado por: ' . htmlspecialchars($usuario->nombre_completo) . '<br>
+                        Fecha de impresión: ' . date('d/m/Y H:i') . '
+                    </td>
+                </tr>
+            </table>
+
+            <div class="section-title">Resumen Balances</div>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Ingresos Totales (Cobros)</th>
+                        <th>Egresos Totales (Gastos)</th>
+                        <th>Balance Neto Estimado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong style="font-size: 13pt;">' . formatUSD($resumen['ingresos']['USD_equiv']) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Efectivo USD: ' . formatUSD($resumen['ingresos']['USD_efectivo']) . '</span><br>
+                            <span style="font-size: 8pt; color: #64748b;">Digital Bs: ' . formatBs($resumen['ingresos']['Bs_digital']) . '</span>
+                        </td>
+                        <td>
+                            <strong style="font-size: 13pt;">' . formatUSD($resumen['egresos']['USD']) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Gastos en Bs: ' . formatBs($resumen['egresos']['Bs']) . '</span>
+                        </td>
+                        <td>
+                            <strong style="font-size: 13pt;" class="' . ($isPositive ? 'positive-balance' : 'negative-balance') . '">' . formatUSD($balanceUSD) . '</strong><br>
+                            <span style="font-size: 8pt; color: #64748b;">Balance Bs: ' . formatBs($balanceBs) . '</span><br>
+                            <span class="badge ' . ($isPositive ? 'badge-success' : 'badge-danger') . '">' . ($isPositive ? 'Superávit' : 'Déficit') . '</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table style="width: 100%; border: none;">
+                <tr>
+                    <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                        <div class="section-title">Detalle de Egresos (Gastos)</div>
+                        ';
+                        if (empty($gastos)) {
+                            $html .= '<p style="font-size: 8pt; color: #64748b;">No hay egresos registrados.</p>';
+                        } else {
+                            $html .= '<table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Detalle</th>
+                                        <th class="text-end">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>';
+                                foreach ($gastos as $g) {
+                                    $html .= '<tr>
+                                        <td>' . date('d/m/Y', strtotime($g->fecha_gasto)) . '</td>
+                                        <td>
+                                            <strong>' . htmlspecialchars($g->nombre) . '</strong><br>
+                                            <span style="font-size: 7pt; color: #64748b;">' . ucfirst($g->metodo_pago) . '</span>
+                                        </td>
+                                        <td class="text-end ' . ($g->moneda === 'USD' ? 'text-success' : 'text-primary') . '">
+                                            ' . ($g->moneda === 'USD' ? formatUSD($g->monto) : formatBs($g->monto)) . '
+                                        </td>
+                                    </tr>';
+                                }
+                                $html .= '</tbody>
+                            </table>';
+                        }
+                        $html .= '
+                    </td>
+                    <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                        <div class="section-title">Detalle de Ingresos (Mensualidades)</div>
+                        ';
+                        if (empty($ingresosDetalle)) {
+                            $html .= '<p style="font-size: 8pt; color: #64748b;">No hay cobros aprobados.</p>';
+                        } else {
+                            $html .= '<table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Cliente / Apto</th>
+                                        <th class="text-end">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>';
+                                foreach ($ingresosDetalle as $i) {
+                                    $html .= '<tr>
+                                        <td>' . date('d/m/Y', strtotime($i['fecha_pago'])) . '</td>
+                                        <td>
+                                            <strong>' . htmlspecialchars($i['cliente_nombre']) . '</strong><br>
+                                            <span style="font-size: 7pt; color: #64748b;">Apto: ' . $i['apartamento'] . '</span>
+                                        </td>
+                                        <td class="text-end text-success">
+                                            ' . ($i['moneda_pago'] === 'usd_efectivo' ? formatUSD($i['monto_usd']) : formatBs($i['monto_bs'])) . '
+                                        </td>
+                                    </tr>';
+                                }
+                                $html .= '</tbody>
+                            </table>';
+                        }
+                        $html .= '
+                    </td>
+                </tr>
+            </table>
+
+            <div class="footer">
+                Este reporte es de carácter informativo y confidencial. Generado por el Sistema de Control de Estacionamiento.
+            </div>
+        </body>
+        </html>
+        ';
+
+        // Configurar DomPDF
+        $options = new \Dompdf\Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('defaultFont', 'helvetica');
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+
+        $filename = 'relacion_financiera_' . date('Ymd_His') . '.pdf';
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Pragma: public');
+
+        echo $dompdf->output();
+        exit;
+    }
+}

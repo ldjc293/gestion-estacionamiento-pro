@@ -100,9 +100,12 @@ require_once __DIR__ . '/../layouts/header.php';
                             <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="<?= htmlspecialchars($fechaFin) ?>">
                         </div>
 
-                        <!-- Botón de Filtrado -->
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Generar Relación</button>
+                        <!-- Botón de Filtrado y Exportación -->
+                        <div class="col-md-3">
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary flex-grow-1"><i class="bi bi-search"></i> Filtrar</button>
+                                <button type="button" onclick="descargarPDF()" class="btn btn-outline-danger"><i class="bi bi-file-pdf"></i> PDF</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -309,6 +312,12 @@ document.addEventListener('DOMContentLoaded', function() {
     filterSelect.addEventListener('change', toggleFilterInputs);
     toggleFilterInputs(); // Ejecutar al cargar la página para inicializar
 });
+
+function descargarPDF() {
+    const form = document.getElementById('filterForm');
+    const params = new URLSearchParams(new FormData(form)).toString();
+    window.open('<?= url('consultor/descargar-reporte-gastos-pdf') ?>?' + params, '_blank');
+}
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
