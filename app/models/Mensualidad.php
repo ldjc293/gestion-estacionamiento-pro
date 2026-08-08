@@ -294,12 +294,49 @@ class Mensualidad
 
             $resultado = Database::execute($sqlInsert, $params);
 
+            // Rectificar mensualidades existentes no pagadas para el mes actual si cambió la tarifa o cantidad de controles
+            $sqlUpdate = "UPDATE mensualidades m
+                          SET cantidad_controles = au.cantidad_controles,
+                              monto_usd = (au.cantidad_controles::numeric * ?::numeric),
+                              monto_bs = (au.cantidad_controles::numeric * ?::numeric * ?::numeric),
+                              tasa_cambio_id = ?
+                          FROM apartamento_usuario au
+                          JOIN usuarios u ON u.id = au.usuario_id
+                          WHERE m.apartamento_usuario_id = au.id
+                            AND m.mes = ?
+                            AND m.anio = ?
+                            AND m.estado = 'pendiente'
+                            AND au.activo = TRUE
+                            AND u.activo = TRUE
+                            AND u.exonerado = FALSE
+                            AND au.cantidad_controles > 0
+                            AND (m.cantidad_controles != au.cantidad_controles OR m.monto_usd != (au.cantidad_controles::numeric * ?::numeric) OR m.tasa_cambio_id != ?)";
+
+            $updateParams = [
+                $tarifaUSD, $tarifaUSD, $tasaBCV,
+                $tasaCambioId, $mes, $anio,
+                $tarifaUSD, $tasaCambioId
+            ];
+
+            $rectificadas = Database::execute($sqlUpdate, $updateParams);
+
+            // Eliminar mensualidades pendientes del mes actual si el usuario ya no tiene controles, está exonerado o inactivo
+            $sqlDelete = "DELETE FROM mensualidades m
+                          USING apartamento_usuario au
+                          JOIN usuarios u ON u.id = au.usuario_id
+                          WHERE m.apartamento_usuario_id = au.id
+                            AND m.mes = ?
+                            AND m.anio = ?
+                            AND m.estado = 'pendiente'
+                            AND (au.cantidad_controles = 0 OR u.exonerado = TRUE OR au.activo = FALSE OR u.activo = FALSE)";
+            $eliminadas = Database::execute($sqlDelete, [$mes, $anio]);
+
             Database::commit();
 
             // Log
-            writeLog("Mensualidades generadas para $mes/$anio: $resultado registros", 'info');
+            writeLog("Mensualidades generadas/rectificadas para $mes/$anio: $resultado creadas, $rectificadas actualizadas, $eliminadas removidas", 'info');
 
-            return $resultado;
+            return $resultado + $rectificadas;
 
         } catch (Exception $e) {
             Database::rollback();

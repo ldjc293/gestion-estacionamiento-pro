@@ -112,7 +112,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="row g-3 mb-4">
                 <!-- Columna Ingresos -->
                 <div class="col-md-4">
-                    <div class="card shadow-sm border-0 h-100 rounded-3 bg-gradient" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                    <div class="card shadow-sm border-0 h-100 rounded-3" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; color: white !important;">
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0 text-uppercase fw-bold opacity-75">Ingresos Totales (Cobros)</h6>
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
                 <!-- Columna Egresos -->
                 <div class="col-md-4">
-                    <div class="card shadow-sm border-0 h-100 rounded-3 bg-gradient" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;">
+                    <div class="card shadow-sm border-0 h-100 rounded-3" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important; color: white !important;">
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0 text-uppercase fw-bold opacity-75">Egresos Totales (Gastos)</h6>
@@ -159,7 +159,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 $isPositive = $balanceUSD >= 0;
                 ?>
                 <div class="col-md-4">
-                    <div class="card shadow-sm border-0 h-100 rounded-3 bg-gradient" style="background: <?= $isPositive ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' ?>; color: white;">
+                    <div class="card shadow-sm border-0 h-100 rounded-3" style="background: <?= $isPositive ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' ?> !important; color: white !important;">
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0 text-uppercase fw-bold opacity-75">Balance Neto Estimado</h6>

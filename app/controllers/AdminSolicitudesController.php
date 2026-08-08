@@ -13,7 +13,7 @@ class AdminSolicitudesController
     public function listarSolicitudesRegistro(): void
     {
         // Verificar autenticación y permisos
-        if (!isset($_SESSION['user_id']) || $_SESSION['user_rol'] !== 'administrador') {
+        if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_rol'], ['administrador', 'operador'])) {
             redirect('auth/login');
         }
 
@@ -37,7 +37,7 @@ class AdminSolicitudesController
         header('Content-Type: application/json');
 
         // Verificar autenticación y permisos
-        if (!isset($_SESSION['user_id']) || $_SESSION['user_rol'] !== 'administrador') {
+        if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_rol'], ['administrador', 'operador'])) {
             echo json_encode(['success' => false, 'message' => 'No autorizado']);
             return;
         }
@@ -77,7 +77,7 @@ class AdminSolicitudesController
         header('Content-Type: application/json');
 
         // Verificar autenticación y permisos
-        if (!isset($_SESSION['user_id']) || $_SESSION['user_rol'] !== 'administrador') {
+        if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_rol'], ['administrador', 'operador'])) {
             echo json_encode(['success' => false, 'message' => 'No autorizado']);
             return;
         }
