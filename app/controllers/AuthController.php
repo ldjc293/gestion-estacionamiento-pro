@@ -183,48 +183,48 @@ class AuthController
         // Verificar rate limiting
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         if (!$this->checkRateLimiting($ip)) {
-            $_SESSION['error'] = 'Por favor, espere ' . PASSWORD_RESET_RATE_LIMIT . ' segundos antes de solicitar otro código';
+            $_SESSION['error'] = 'Por favor, espere ' . PASSWORD_RESET_RATE_LIMIT . ' segundos antes de enviar otra solicitud';
             redirect('auth/forgot-password');
         }
 
         $usuario = Usuario::findByEmail($email);
 
         // No revelar si el email existe (anti-enumeración)
-        $_SESSION['success'] = 'Si el email existe en nuestro sistema, recibirás un código de verificación';
+        $_SESSION['success'] = 'Se ha enviado tu solicitud al personal administrativo. Por favor espera a que la aprueben.';
 
-        // Si el usuario existe y está activo, enviar código
+        // Si el usuario existe y está activo, registrar solicitud de restablecimiento
         if ($usuario && $usuario->activo) {
-            // Generar código de 6 dígitos
-            $codigo = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $fechaExpiracion = date('Y-m-d H:i:s', strtotime('+' . PASSWORD_RESET_CODE_EXPIRATION . ' minutes'));
+            // Obtener apartamento_usuario_id si aplica
+            $sqlApto = "SELECT id FROM public.apartamento_usuario WHERE usuario_id = ? LIMIT 1";
+            $aptoUsr = Database::fetchOne($sqlApto, [$usuario->id]);
+            $aptoUsrId = $aptoUsr ? intval($aptoUsr['id']) : null;
 
-            // Guardar en BD
-            $sql = "INSERT INTO password_reset_tokens
-                    (usuario_id, email, codigo, fecha_expiracion, ip_address, user_agent)
-                    VALUES (?, ?, ?, ?, ?, ?)";
-
-            Database::execute($sql, [
-                $usuario->id,
-                $email,
-                $codigo,
-                $fechaExpiracion,
-                $ip,
-                $_SERVER['HTTP_USER_AGENT'] ?? null
+            // Registrar solicitud de tipo restablecer_password
+            $sqlInsert = "INSERT INTO public.solicitudes_cambios 
+                          (tipo_solicitud, apartamento_usuario_id, motivo, estado, fecha_solicitud, datos_nuevo_usuario)
+                          VALUES (?, ?, ?, ?, NOW(), ?)";
+            
+            $datosSolicitud = json_encode([
+                'usuario_id' => $usuario->id,
+                'email' => $usuario->email,
+                'nombre' => $usuario->nombre_completo
             ]);
 
-            // Enviar email con código
-            MailHelper::sendPasswordResetCode($email, $usuario->nombre_completo, $codigo);
+            Database::execute($sqlInsert, [
+                'restablecer_password',
+                $aptoUsrId,
+                'El usuario olvidó su contraseña y solicita un restablecimiento de clave.',
+                'pendiente',
+                $datosSolicitud
+            ]);
 
-            writeLog("Código de recuperación enviado a: $email", 'info');
-
-            // Guardar email en sesión para el siguiente paso
-            $_SESSION['reset_email'] = $email;
+            writeLog("Solicitud de restablecimiento de contraseña registrada para: $email", 'info');
         } else {
-            // Log de intento con email no registrado
-            writeLog("Intento de recuperación con email no registrado: $email", 'warning');
+            // Log de intento con email no registrado o inactivo
+            writeLog("Intento de recuperación con email no registrado o inactivo: $email", 'warning');
         }
 
-        redirect('auth/verificar-codigo');
+        redirect('auth/forgot-password');
     }
 
     /**

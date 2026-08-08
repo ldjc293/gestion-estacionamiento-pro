@@ -218,6 +218,10 @@ class SolicitudCambio
                         $resultadoAccion = $this->incrementarCantidadControles();
                     }
                     break;
+
+                case 'restablecer_password':
+                    $resultadoAccion = $this->procesarRestablecerPassword();
+                    break;
             }
 
             if (!$resultadoAccion) {
@@ -587,5 +591,33 @@ class SolicitudCambio
         }
 
         return json_decode($this->datos_nuevo_usuario, true);
+    }
+
+    /**
+     * Procesar el restablecimiento de contraseña para el usuario
+     * Establece la contraseña temporal "123456" y obliga a cambiarla
+     */
+    private function procesarRestablecerPassword(): bool
+    {
+        $datos = $this->getDatosNuevoUsuario();
+        $usuarioId = $datos['usuario_id'] ?? null;
+
+        if (!$usuarioId) {
+            writeLog("Error procesando restablecimiento de contraseña: No se especificó el ID de usuario.", 'error');
+            return false;
+        }
+
+        // Hash para "123456"
+        $passwordHash = '$2y$10$Nt2Bw83th4k1wtBBJ97sxuCqWWPirY76zCF24cwWSOVfCuoqnUaX2';
+
+        $sql = "UPDATE public.usuarios 
+                SET password = ?, 
+                    password_temporal = true, 
+                    primer_acceso = true, 
+                    intentos_fallidos = 0, 
+                    bloqueado_hasta = NULL 
+                WHERE id = ?";
+
+        return Database::execute($sql, [$passwordHash, $usuarioId]) !== false;
     }
 }

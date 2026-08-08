@@ -212,7 +212,7 @@
                     <i class="bi bi-shield-lock"></i>
                 </div>
                 <h1>Recuperar Contraseña</h1>
-                <p>Ingresa tu email y te enviaremos un código de verificación</p>
+                <p>Ingresa tu email registrado para enviar una solicitud de restablecimiento al personal administrativo</p>
             </div>
 
             <?php if (isset($_SESSION['error'])): ?>
@@ -233,7 +233,7 @@
 
             <div class="info-box">
                 <i class="bi bi-info-circle-fill"></i>
-                <strong>Instrucciones:</strong> Recibirás un código de 6 dígitos que expira en 15 minutos. Revisa también tu carpeta de SPAM.
+                <strong>Instrucciones:</strong> Se enviará una solicitud al personal administrativo. Ellos se encargarán de restablecer tu acceso.
             </div>
 
             <form action="<?= url('auth/processForgotPassword') ?>" method="POST" id="recoveryForm">
@@ -254,7 +254,7 @@
 
                 <button type="submit" class="btn btn-primary" id="submitBtn">
                     <span id="btnText">
-                        <i class="bi bi-send"></i> Enviar Código de Verificación
+                        <i class="bi bi-send"></i> Enviar solicitud de restablecimiento de contraseña
                     </span>
                     <span id="btnSpinner" style="display: none;">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>

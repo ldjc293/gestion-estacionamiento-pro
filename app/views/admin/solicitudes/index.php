@@ -196,6 +196,8 @@ function getBadgeColorForTipo($tipo) {
             return 'info';
         case 'cambio_estado_control':
             return 'secondary';
+        case 'restablecer_password':
+            return 'warning';
         default:
             return 'secondary';
     }
@@ -217,7 +219,7 @@ const solicitudesData = <?= json_encode(array_map(function($s) {
         'motivo' => $s->motivo
     ];
     
-    if ($s->tipo_solicitud === 'registro_nuevo_usuario') {
+    if ($s->tipo_solicitud === 'registro_nuevo_usuario' || $s->tipo_solicitud === 'restablecer_password') {
         $data['datos'] = $s->getDatosNuevoUsuario();
     } else {
         // Obtener datos del usuario y apartamento
@@ -273,6 +275,17 @@ function verDetalles(id) {
                 </div>
             `;
         }
+    } else if (solicitud.tipo === 'restablecer_password') {
+        const datos = solicitud.datos;
+        html += `
+            <div class="col-md-12">
+                <h6>Información de la Solicitud</h6>
+                <p><strong>Usuario:</strong> ${datos.nombre}</p>
+                <p><strong>Email:</strong> ${datos.email}</p>
+                <p><strong>Tipo:</strong> Restablecer Contraseña</p>
+                <p><strong>Acción al aprobar:</strong> Se establecerá la contraseña temporal <strong>123456</strong> para este usuario.</p>
+            </div>
+        `;
     } else {
         const usuario = solicitud.usuario;
         html += `
@@ -332,9 +345,13 @@ function aprobar(id) {
     if (tiposQueRequierenControl.includes(solicitud.tipo)) {
         mostrarModalSeleccionarControl(id, solicitud);
     } else {
+        let alertText = "Esta acción procesará la solicitud y aplicará los cambios necesarios.";
+        if (solicitud.tipo === 'restablecer_password') {
+            alertText = "Esta acción restablecerá la contraseña de este usuario a la clave temporal '123456'.";
+        }
         Swal.fire({
             title: '¿Aprobar solicitud?',
-            text: "Esta acción procesará la solicitud y aplicará los cambios necesarios.",
+            text: alertText,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#10b981',

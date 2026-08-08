@@ -22,7 +22,8 @@ class SolicitudHelper
             'comprar_control' => 'Comprar Control',
             'solicitud_personalizada' => 'Solicitud Personalizada',
             'reactivar_control' => 'Reactivar Control',
-            'cambio_estado_control' => 'Cambio Estado Control'
+            'cambio_estado_control' => 'Cambio Estado Control',
+            'restablecer_password' => 'Restablecer Contraseña'
         ];
     }
 
@@ -86,6 +87,11 @@ class SolicitudHelper
                 'label' => 'Cambio Estado Control',
                 'icon' => 'arrow-repeat',
                 'color' => 'secondary'
+            ],
+            'restablecer_password' => [
+                'label' => 'Restablecer Contraseña',
+                'icon' => 'key',
+                'color' => 'warning'
             ]
         ];
     }
