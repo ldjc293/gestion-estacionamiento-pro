@@ -435,7 +435,7 @@ function mostrarModalAsignacionControles(solicitudId, solicitud) {
                     </div>
                     <div class="modal-body">
                         <form id="formAsignacionControles">
-                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                            <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                             <input type="hidden" name="solicitud_id" value="${solicitudId}">
 
                             <!-- Información del usuario -->
@@ -726,7 +726,7 @@ function procesarAprobacion(id, controlId = null, observaciones = '') {
     const isOperador = '<?= $_SESSION['user_rol'] ?>' === 'operador';
     const url = isOperador ? '<?= url('operador/aprobar-solicitud') ?>' : '<?= url('admin/aprobar-solicitud') ?>';
 
-    let bodyData = `solicitud_id=${id}&accion=aprobar&csrf_token=<?= $_SESSION['csrf_token'] ?>`;
+    let bodyData = `solicitud_id=${id}&accion=aprobar&csrf_token=<?= generateCSRFToken() ?>`;
     if (controlId) {
         bodyData += `&control_id=${controlId}`;
     }
@@ -805,8 +805,8 @@ function confirmarRechazo() {
     const url = isOperador ? '<?= url('operador/process-solicitud') ?>' : '<?= url('admin/rechazar-solicitud') ?>';
 
     const bodyData = isOperador
-        ? `solicitud_id=${id}&accion=rechazar&observaciones=${encodeURIComponent(motivo)}&csrf_token=<?= $_SESSION['csrf_token'] ?>`
-        : `solicitud_id=${id}&motivo=${encodeURIComponent(motivo)}&csrf_token=<?= $_SESSION['csrf_token'] ?>`;
+        ? `solicitud_id=${id}&accion=rechazar&observaciones=${encodeURIComponent(motivo)}&csrf_token=<?= generateCSRFToken() ?>`
+        : `solicitud_id=${id}&motivo=${encodeURIComponent(motivo)}&csrf_token=<?= generateCSRFToken() ?>`;
 
     fetch(url, {
         method: 'POST',

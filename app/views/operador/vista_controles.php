@@ -241,7 +241,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="modal-body">
                 <form id="formCambiarEstado">
                     <input type="hidden" id="control_id" name="control_id">
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                     
                     <div class="mb-3">
                         <label class="form-label"><strong>Control:</strong></label>
